@@ -1,13 +1,4 @@
-.env
-.env.dev
 .idea/
 *.orig
 go.sum
-bin/*
-*.pem
-*.crt
-*.key
 *.coverprofile
-*.bdb
-.cache
-internal/assets/assets.gen.go

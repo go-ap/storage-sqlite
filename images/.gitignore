@@ -1,5 +1,0 @@
-.env
-.env.dev
-*.crt
-*.key
-*.pem

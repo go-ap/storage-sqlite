@@ -1,0 +1,15 @@
+image: archlinux
+packages:
+  - go
+sources:
+  - https://github.com/go-ap/storage-fs
+environment:
+  GO111MODULE: 'on'
+tasks:
+  - tests: |
+      cd storage-fs
+      make test
+      make TEST_TARGET=./tests test
+  - coverage: |
+      set -a +x
+      cd storage-fs && make coverage

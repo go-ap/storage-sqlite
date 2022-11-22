@@ -1,5 +1,3 @@
-//go:build storage_sqlite || storage_all || (!storage_fs && !storage_boltdb && !storage_badger && !storage_pgx)
-
 package sqlite
 
 import (
@@ -16,10 +14,10 @@ import (
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	ap "github.com/go-ap/fedbox/activitypub"
-	"github.com/go-ap/fedbox/internal/cache"
 	"github.com/go-ap/fedbox/storage"
 	"github.com/go-ap/jsonld"
 	"github.com/go-ap/processing"
+	"github.com/go-ap/storage-sqlite/internal/cache"
 	"golang.org/x/crypto/bcrypt"
 )
 

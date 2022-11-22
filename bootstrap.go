@@ -1,5 +1,3 @@
-//go:build storage_sqlite || storage_all || (!storage_fs && !storage_boltdb && !storage_badger && !storage_pgx)
-
 package sqlite
 
 import (
@@ -7,10 +5,9 @@ import (
 	"os"
 
 	"github.com/go-ap/errors"
-	"github.com/go-ap/fedbox/internal/config"
 )
 
-func Clean(conf config.Options) error {
+func Clean(conf Config) error {
 	p, err := getFullPath(Config{
 		StoragePath: conf.BaseStoragePath(),
 		BaseURL:     conf.BaseURL,
@@ -21,7 +18,7 @@ func Clean(conf config.Options) error {
 	return os.RemoveAll(p)
 }
 
-func Bootstrap(conf config.Options) (err error) {
+func Bootstrap(conf Config) (err error) {
 	Clean(conf)
 
 	p, err := getFullPath(Config{
