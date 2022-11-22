@@ -8,10 +8,7 @@ import (
 )
 
 func Clean(conf Config) error {
-	p, err := getFullPath(Config{
-		StoragePath: conf.BaseStoragePath(),
-		BaseURL:     conf.BaseURL,
-	})
+	p, err := getFullPath(conf)
 	if err != nil {
 		return err
 	}
@@ -21,16 +18,13 @@ func Clean(conf Config) error {
 func Bootstrap(conf Config) (err error) {
 	Clean(conf)
 
-	p, err := getFullPath(Config{
-		StoragePath: conf.BaseStoragePath(),
-		BaseURL:     conf.BaseURL,
-	})
+	p, err := getFullPath(conf)
 	if err != nil {
 		return err
 	}
 
 	r := repo{
-		baseURL: conf.BaseURL,
+		baseURL: conf.URL,
 		path:    p,
 		logFn:   defaultLogFn,
 		errFn:   defaultLogFn,

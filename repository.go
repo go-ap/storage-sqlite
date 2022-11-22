@@ -31,9 +31,9 @@ type loggerFn func(string, ...interface{})
 var defaultLogFn = func(string, ...interface{}) {}
 
 type Config struct {
-	EnableCache bool
-	StoragePath string
-	BaseURL     string
+	Path        string
+	URL         string
+	CacheEnable bool
 }
 
 // New returns a new repo repository
@@ -44,10 +44,10 @@ func New(c Config) (*repo, error) {
 	}
 	return &repo{
 		path:    p,
-		baseURL: c.BaseURL,
+		baseURL: c.URL,
 		logFn:   defaultLogFn,
 		errFn:   defaultLogFn,
-		cache:   cache.New(c.EnableCache),
+		cache:   cache.New(c.CacheEnable),
 	}, nil
 }
 
@@ -329,7 +329,7 @@ func (r *repo) LoadKey(iri vocab.IRI) (crypto.PrivateKey, error) {
 }
 
 func getFullPath(c Config) (string, error) {
-	p, err := getAbsStoragePath(c.StoragePath)
+	p, err := getAbsStoragePath(c.Path)
 	if err != nil {
 		return "memory", err
 	}
