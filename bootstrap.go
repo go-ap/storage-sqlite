@@ -15,7 +15,7 @@ func Clean(conf Config) error {
 	return os.RemoveAll(p)
 }
 
-func Bootstrap(conf Config) (err error) {
+func Bootstrap(conf Config, url string) (err error) {
 	Clean(conf)
 
 	p, err := getFullPath(conf)
@@ -24,10 +24,9 @@ func Bootstrap(conf Config) (err error) {
 	}
 
 	r := repo{
-		baseURL: conf.URL,
-		path:    p,
-		logFn:   defaultLogFn,
-		errFn:   defaultLogFn,
+		path:  p,
+		logFn: defaultLogFn,
+		errFn: defaultLogFn,
 	}
 	if err = r.Open(); err != nil {
 		return err
