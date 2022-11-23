@@ -48,5 +48,3 @@ require (
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.0.1 // indirect
 )
-
-replace go.opencensus.io => github.com/census-instrumentation/opencensus-go v0.23.0
