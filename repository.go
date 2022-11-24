@@ -33,6 +33,8 @@ var defaultLogFn = func(string, ...interface{}) {}
 type Config struct {
 	Path        string
 	CacheEnable bool
+	LogFn loggerFn
+	ErrFn loggerFn
 }
 
 // New returns a new repo repository
@@ -43,8 +45,8 @@ func New(c Config) (*repo, error) {
 	}
 	return &repo{
 		path:  p,
-		logFn: defaultLogFn,
-		errFn: defaultLogFn,
+		logFn: c.LogFn,
+		errFn: c.ErrFn,
 		cache: cache.New(c.CacheEnable),
 	}, nil
 }
@@ -68,7 +70,7 @@ func (r *repo) Open() (err error) {
 }
 
 // Close closes the sqlite database
-func (r *repo) Close() (err error) {
+func (r *repo) close() (err error) {
 	if r.conn == nil {
 		return
 	}
@@ -85,7 +87,9 @@ func (r repo) CreateService(service vocab.Service) (err error) {
 		return err
 	}
 	defer func() {
-		err = r.Close()
+		if err = r.close(); err != nil {
+			r.errFn("error closing the db: %+s", err)
+		}
 	}()
 	it, err := save(r, service)
 	if err != nil {

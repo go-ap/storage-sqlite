@@ -1,21 +1,22 @@
 module github.com/go-ap/storage-sqlite
 
-go 1.19
+go 1.18
 
 require (
+	git.sr.ht/~mariusor/lw v0.0.0-20221124080058-e91ea2c1fdc2
 	github.com/go-ap/activitypub v0.0.0-20221119120906-cb8207231e18
 	github.com/go-ap/errors v0.0.0-20221115052505-8aaa26f930b4
 	github.com/go-ap/fedbox v0.0.0-20221120045022-07cf64331c4c
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/go-ap/processing v0.0.0-20221120042224-7db5474c4a58
 	github.com/mattn/go-sqlite3 v1.14.15
+	github.com/openshift/osin v1.0.1
 	golang.org/x/crypto v0.3.0
 	modernc.org/sqlite v1.19.1
 )
 
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
-	git.sr.ht/~mariusor/lw v0.0.0-20221102084913-34fb8eae441e // indirect
 	github.com/go-ap/client v0.0.0-20221119121059-9d87174a90b2 // indirect
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -24,7 +25,6 @@ require (
 	github.com/mariusor/qstring v0.0.0-20200204164351-5a99d46de39d // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
-	github.com/openshift/osin v1.0.1 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20220927061507-ef77025ab5aa // indirect
 	github.com/rs/xid v1.4.0 // indirect

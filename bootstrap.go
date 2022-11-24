@@ -32,7 +32,9 @@ func Bootstrap(conf Config, url string) (err error) {
 		return err
 	}
 	defer func() {
-		err = r.Close()
+		if err = r.close(); err != nil {
+			r.errFn("error closing the db: %+s", err)
+		}
 	}()
 
 	exec := func(qRaw string, par ...interface{}) error {
@@ -53,6 +55,18 @@ func Bootstrap(conf Config, url string) (err error) {
 		return err
 	}
 	if err = exec(createCollectionsQuery); err != nil {
+		return err
+	}
+	if err = exec(createClientTable); err != nil {
+		return err
+	}
+	if err = exec(createAuthorizeTable); err != nil {
+		return err
+	}
+	if err = exec(createAccessTable); err != nil {
+		return err
+	}
+	if err = exec(createRefreshTable); err != nil {
 		return err
 	}
 	if err = exec(tuneQuery); err != nil {
