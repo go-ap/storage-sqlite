@@ -7,7 +7,6 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	ap "github.com/go-ap/fedbox/activitypub"
-	"github.com/go-ap/processing"
 )
 
 func isCollection(col string) bool {
@@ -207,7 +206,7 @@ func getWhereClauses(f *ap.Filters) ([]string, []interface{}) {
 	return clauses, values
 }
 
-func getLimit(f processing.Filterable) string {
+func getLimit(f Filterable) string {
 	if f, ok := f.(*ap.Filters); ok {
 		if f.MaxItems == 0 {
 			return ""

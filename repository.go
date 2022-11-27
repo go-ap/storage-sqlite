@@ -15,7 +15,6 @@ import (
 	"github.com/go-ap/errors"
 	ap "github.com/go-ap/fedbox/activitypub"
 	"github.com/go-ap/fedbox/storage"
-	"github.com/go-ap/processing"
 	"github.com/go-ap/storage-sqlite/internal/cache"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -381,7 +380,9 @@ func loadMetadataFromTable(conn *sql.DB, iri vocab.IRI) ([]byte, error) {
 	return meta, err
 }
 
-func isSingleItem(f processing.Filterable) bool {
+type Filterable = vocab.LinkOrIRI
+
+func isSingleItem(f Filterable) bool {
 	if _, isIRI := f.(vocab.IRI); isIRI {
 		return true
 	}
