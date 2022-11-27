@@ -15,14 +15,13 @@ import (
 	"github.com/go-ap/errors"
 	ap "github.com/go-ap/fedbox/activitypub"
 	"github.com/go-ap/fedbox/storage"
-	"github.com/go-ap/jsonld"
 	"github.com/go-ap/processing"
 	"github.com/go-ap/storage-sqlite/internal/cache"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var encodeFn = jsonld.Marshal
-var decodeFn = jsonld.Unmarshal
+var encodeItemFn = vocab.MarshalJSON
+var decodeItemFn = vocab.UnmarshalJSON
 
 var errNotImplemented = errors.NotImplementedf("not implemented")
 
@@ -33,8 +32,8 @@ var defaultLogFn = func(string, ...interface{}) {}
 type Config struct {
 	Path        string
 	CacheEnable bool
-	LogFn loggerFn
-	ErrFn loggerFn
+	LogFn       loggerFn
+	ErrFn       loggerFn
 }
 
 // New returns a new repo repository
@@ -457,7 +456,7 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *ap.Filters) (vocab
 			return ret, errors.Annotatef(err, "scan values error")
 		}
 
-		it, err := vocab.UnmarshalJSON(raw)
+		it, err := decodeItemFn(raw)
 		if err != nil {
 			return ret, errors.Annotatef(err, "unable to unmarshal raw item")
 		}
@@ -816,7 +815,7 @@ func save(l repo, it vocab.Item) (vocab.Item, error) {
 	if err := flattenCollections(it); err != nil {
 		return it, errors.Annotatef(err, "could not create object's collections")
 	}
-	raw, err := encodeFn(it)
+	raw, err := encodeItemFn(it)
 	if err != nil {
 		l.errFn("query error: %s", err)
 		return it, errors.Annotatef(err, "query error")

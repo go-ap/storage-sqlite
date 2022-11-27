@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -55,6 +56,16 @@ const (
 );
 `
 )
+
+var encodeFn = func(v any) ([]byte, error) {
+	buf := bytes.Buffer{}
+	err := json.NewEncoder(&buf).Encode(v)
+	return buf.Bytes(), err
+}
+
+var decodeFn = func(data []byte, m any) error {
+	return json.NewDecoder(bytes.NewReader(data)).Decode(m)
+}
 
 // Clone
 func (r *repo) Clone() osin.Storage {
