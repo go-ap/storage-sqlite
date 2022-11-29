@@ -6,11 +6,11 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20221124080058-e91ea2c1fdc2
 	github.com/go-ap/activitypub v0.0.0-20221129071730-d68022eb490b
 	github.com/go-ap/errors v0.0.0-20221115052505-8aaa26f930b4
-	github.com/go-ap/fedbox v0.0.0-20221120045022-07cf64331c4c
-	github.com/mattn/go-sqlite3 v1.14.15
+	github.com/go-ap/fedbox v0.0.0-20221126031655-ed2ed3c5f1a7
+	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/openshift/osin v1.0.1
 	golang.org/x/crypto v0.3.0
-	modernc.org/sqlite v1.19.5
+	modernc.org/sqlite v1.20.0
 )
 
 require (
