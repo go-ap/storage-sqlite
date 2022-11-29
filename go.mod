@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20221124080058-e91ea2c1fdc2
-	github.com/go-ap/activitypub v0.0.0-20221126061933-ea245cac6043
+	github.com/go-ap/activitypub v0.0.0-20221129071730-d68022eb490b
 	github.com/go-ap/errors v0.0.0-20221115052505-8aaa26f930b4
 	github.com/go-ap/fedbox v0.0.0-20221120045022-07cf64331c4c
 	github.com/mattn/go-sqlite3 v1.14.15
@@ -15,10 +15,10 @@ require (
 
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
-	github.com/go-ap/client v0.0.0-20221126062204-462866a3146a // indirect
+	github.com/go-ap/client v0.0.0-20221129072953-019c2679a04b // indirect
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51 // indirect
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73 // indirect
-	github.com/go-ap/processing v0.0.0-20221126063104-53445d2dd53c // indirect
+	github.com/go-ap/processing v0.0.0-20221129073353-003767cd0d86 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
