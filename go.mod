@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20221124080058-e91ea2c1fdc2
-	github.com/go-ap/activitypub v0.0.0-20221129071730-d68022eb490b
-	github.com/go-ap/errors v0.0.0-20221115052505-8aaa26f930b4
+	github.com/go-ap/activitypub v0.0.0-20221201010522-ff602be9ffba
+	github.com/go-ap/errors v0.0.0-20221201010224-09b9c5d09ea9
 	github.com/go-ap/fedbox v0.0.0-20221126031655-ed2ed3c5f1a7
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/openshift/osin v1.0.1
