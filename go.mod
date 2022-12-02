@@ -15,10 +15,10 @@ require (
 
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
-	github.com/go-ap/client v0.0.0-20221201095445-162c2b76fb35 // indirect
+	github.com/go-ap/client v0.0.0-20221202064034-36157863a2f1 // indirect
 	github.com/go-ap/httpsig v0.0.0-20210714162115-62a09257db51 // indirect
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73 // indirect
-	github.com/go-ap/processing v0.0.0-20221201100030-7379e9877e4c // indirect
+	github.com/go-ap/processing v0.0.0-20221202033807-bc3169741ca3 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
