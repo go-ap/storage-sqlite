@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20221202111053-2dd31f3348e7
-	github.com/go-ap/activitypub v0.0.0-20221206062958-cae46e718d79
+	github.com/go-ap/activitypub v0.0.0-20221207073405-5d6d22cbc42e
 	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
 	github.com/go-ap/fedbox v0.0.0-20221126031655-ed2ed3c5f1a7
 	github.com/mattn/go-sqlite3 v1.14.16
@@ -15,9 +15,9 @@ require (
 
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
-	github.com/go-ap/client v0.0.0-20221205125528-067209307344 // indirect
+	github.com/go-ap/client v0.0.0-20221207090140-c371e630622e // indirect
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73 // indirect
-	github.com/go-ap/processing v0.0.0-20221205125724-e600f9d022dc // indirect
+	github.com/go-ap/processing v0.0.0-20221207090406-7a5144619da7 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
@@ -31,8 +31,8 @@ require (
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/valyala/fastjson v1.6.3 // indirect
 	golang.org/x/mod v0.7.0 // indirect
-	golang.org/x/net v0.3.0 // indirect
-	golang.org/x/oauth2 v0.2.0 // indirect
+	golang.org/x/net v0.4.0 // indirect
+	golang.org/x/oauth2 v0.3.0 // indirect
 	golang.org/x/sys v0.3.0 // indirect
 	golang.org/x/tools v0.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
