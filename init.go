@@ -71,7 +71,11 @@ CREATE TABLE collections (
   "published" TEXT default CURRENT_TIMESTAMP,
   "iri" TEXT,
   "object" TEXT
-) STRICT;`
+) STRICT;
+
+CREATE TRIGGER collections_updated_published AFTER UPDATE ON collections BEGIN
+  UPDATE collections SET published = strftime('%Y-%m-%dT%H:%M:%fZ') WHERE iri = old.iri;
+END;`
 
 	tuneQuery = `
 -- Use WAL mode (writers don't block readers):
