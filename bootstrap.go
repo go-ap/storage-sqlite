@@ -15,7 +15,7 @@ func Clean(conf Config) error {
 	return os.RemoveAll(p)
 }
 
-func Bootstrap(conf Config, url string) (err error) {
+func Bootstrap(conf Config, url string) error {
 	Clean(conf)
 
 	p, err := getFullPath(conf)
@@ -73,7 +73,7 @@ func Bootstrap(conf Config, url string) (err error) {
 		return err
 	}
 
-	return
+	return nil
 }
 
 func (r *repo) Reset() {}

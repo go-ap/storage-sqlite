@@ -11,12 +11,12 @@ CREATE TABLE actors (
   "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
   "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
   "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
-  "published" timestamp GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
-  "updated" timestamp GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
+  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
+  "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
   "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,
   "preferred_username" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.preferredUsername')) VIRTUAL
-);
+) STRICT;
 -- CREATE INDEX actors_type ON actors(type);
 -- CREATE INDEX actors_published ON actors(published);
 `
@@ -31,11 +31,12 @@ CREATE TABLE activities (
   "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
   "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
   "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
-  "published" timestamp GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
+  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
+  "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
   "actor" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.actor')) VIRTUAL NOT NULL CONSTRAINT activities_actors_iri_fk REFERENCES actors (iri),
   "object" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.object')) VIRTUAL CONSTRAINT activities_objects_iri_fk REFERENCES objects (iri)
-);
+) STRICT;
 -- CREATE INDEX activities_type ON activities(type);
 -- CREATE INDEX activities_actor ON activities(actor);
 -- CREATE INDEX activities_object ON activities(object);
@@ -52,13 +53,13 @@ CREATE TABLE objects (
   "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
   "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
   "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
-  "published" timestamp GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
-  "updated" timestamp GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
+  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
+  "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
   "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,
   "summary" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.summary')) VIRTUAL,
   "content" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.content')) VIRTUAL
-);
+) STRICT;
 -- CREATE INDEX objects_type ON objects(type);
 -- CREATE INDEX objects_name ON objects(name);
 -- CREATE INDEX objects_content ON objects(content);
@@ -66,11 +67,11 @@ CREATE TABLE objects (
 `
 
 	createCollectionsQuery = `
-create table collections (
-  "published" timestamp default CURRENT_TIMESTAMP,
-  "iri" varchar,
-  "object" varchar
-);`
+CREATE TABLE collections (
+  "published" TEXT default CURRENT_TIMESTAMP,
+  "iri" TEXT,
+  "object" TEXT
+) STRICT;`
 
 	tuneQuery = `
 -- Use WAL mode (writers don't block readers):
