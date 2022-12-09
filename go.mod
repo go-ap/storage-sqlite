@@ -4,20 +4,20 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20221202111053-2dd31f3348e7
-	github.com/go-ap/activitypub v0.0.0-20221207073405-5d6d22cbc42e
+	github.com/go-ap/activitypub v0.0.0-20221209114049-1ceafda50f9f
 	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
 	github.com/go-ap/fedbox v0.0.0-20221126031655-ed2ed3c5f1a7
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/openshift/osin v1.0.1
-	golang.org/x/crypto v0.3.0
+	golang.org/x/crypto v0.4.0
 	modernc.org/sqlite v1.20.0
 )
 
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
-	github.com/go-ap/client v0.0.0-20221207090140-c371e630622e // indirect
+	github.com/go-ap/client v0.0.0-20221209114704-ee9adde8b2c2 // indirect
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73 // indirect
-	github.com/go-ap/processing v0.0.0-20221207090406-7a5144619da7 // indirect
+	github.com/go-ap/processing v0.0.0-20221209114920-2605ed43f9c7 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
