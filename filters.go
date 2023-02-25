@@ -6,14 +6,14 @@ import (
 	"strings"
 
 	vocab "github.com/go-ap/activitypub"
-	ap "github.com/go-ap/fedbox/activitypub"
+	"github.com/go-ap/filters"
 )
 
 func isCollection(col string) bool {
-	return col == string(ap.ActorsType) || col == string(ap.ActivitiesType) || col == string(ap.ObjectsType)
+	return col == string(filters.ActorsType) || col == string(filters.ActivitiesType) || col == string(filters.ObjectsType)
 }
 
-func getStringFieldInJSONWheres(strs ap.CompStrs, props ...string) (string, []interface{}) {
+func getStringFieldInJSONWheres(strs filters.CompStrs, props ...string) (string, []interface{}) {
 	if len(strs) == 0 {
 		return "", nil
 	}
@@ -51,7 +51,7 @@ func getStringFieldInJSONWheres(strs ap.CompStrs, props ...string) (string, []in
 	return fmt.Sprintf("(%s)", strings.Join(keyWhere, " OR ")), values
 }
 
-func getStringFieldWheres(strs ap.CompStrs, fields ...string) (string, []interface{}) {
+func getStringFieldWheres(strs filters.CompStrs, fields ...string) (string, []interface{}) {
 	if len(strs) == 0 {
 		return "", nil
 	}
@@ -88,15 +88,15 @@ func getStringFieldWheres(strs ap.CompStrs, fields ...string) (string, []interfa
 	return fmt.Sprintf("(%s)", strings.Join(keyWhere, " OR ")), values
 }
 
-func getTypeWheres(strs ap.CompStrs) (string, []interface{}) {
+func getTypeWheres(strs filters.CompStrs) (string, []interface{}) {
 	return getStringFieldWheres(strs, "type")
 }
 
-func getContextWheres(strs ap.CompStrs) (string, []interface{}) {
+func getContextWheres(strs filters.CompStrs) (string, []interface{}) {
 	return getStringFieldInJSONWheres(strs, "context")
 }
 
-func getURLWheres(strs ap.CompStrs) (string, []interface{}) {
+func getURLWheres(strs filters.CompStrs) (string, []interface{}) {
 	clause, values := getStringFieldWheres(strs, "url")
 	jClause, jValues := getStringFieldInJSONWheres(strs, "url")
 	if len(jClause) > 0 {
@@ -115,7 +115,7 @@ var MandatoryCollections = vocab.CollectionPaths{
 	vocab.Replies,
 }
 
-func getIRIWheres(strs ap.CompStrs, id vocab.IRI) (string, []interface{}) {
+func getIRIWheres(strs filters.CompStrs, id vocab.IRI) (string, []interface{}) {
 	iriClause, iriValues := getStringFieldWheres(strs, "iri")
 
 	skipId := strings.Contains(iriClause, `"iri"`)
@@ -144,19 +144,19 @@ func getIRIWheres(strs ap.CompStrs, id vocab.IRI) (string, []interface{}) {
 	return iriClause, iriValues
 }
 
-func getNamesWheres(strs ap.CompStrs) (string, []interface{}) {
+func getNamesWheres(strs filters.CompStrs) (string, []interface{}) {
 	return getStringFieldInJSONWheres(strs, "name", "preferredUsername")
 }
 
-func getInReplyToWheres(strs ap.CompStrs) (string, []interface{}) {
+func getInReplyToWheres(strs filters.CompStrs) (string, []interface{}) {
 	return getStringFieldInJSONWheres(strs, "inReplyTo")
 }
 
-func getAttributedToWheres(strs ap.CompStrs) (string, []interface{}) {
+func getAttributedToWheres(strs filters.CompStrs) (string, []interface{}) {
 	return getStringFieldInJSONWheres(strs, "attributedTo")
 }
 
-func getWhereClauses(f *ap.Filters) ([]string, []interface{}) {
+func getWhereClauses(f *filters.Filters) ([]string, []interface{}) {
 	var clauses = make([]string, 0)
 	var values = make([]interface{}, 0)
 
@@ -196,7 +196,7 @@ func getWhereClauses(f *ap.Filters) ([]string, []interface{}) {
 	}
 
 	if len(clauses) == 0 {
-		if ap.FedBOXCollections.Contains(f.Collection) {
+		if filters.FedBOXCollections.Contains(f.Collection) {
 			clauses = append(clauses, " true")
 		} else {
 			clauses = append(clauses, " false")
@@ -207,13 +207,13 @@ func getWhereClauses(f *ap.Filters) ([]string, []interface{}) {
 }
 
 func getLimit(f Filterable) string {
-	if f, ok := f.(*ap.Filters); ok {
+	if f, ok := f.(*filters.Filters); ok {
 		if f.MaxItems == 0 {
 			return ""
 		}
 		limit := fmt.Sprintf(" LIMIT %d", f.MaxItems)
 		if f.CurPage > 0 {
-			return fmt.Sprintf("%s OFFSET %d", limit, f.MaxItems*(f.CurPage-1))
+			return fmt.Sprintf("%s OFFSET %d", limit, f.MaxItems*(int(f.CurPage)-1))
 		}
 	}
 	return ""

@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"fmt"
+	vocab "github.com/go-ap/activitypub"
 	"os"
 
 	"github.com/go-ap/errors"
@@ -15,7 +16,7 @@ func Clean(conf Config) error {
 	return os.RemoveAll(p)
 }
 
-func Bootstrap(conf Config, url string) error {
+func Bootstrap(conf Config, service vocab.Item) error {
 	Clean(conf)
 
 	p, err := getFullPath(conf)
@@ -72,8 +73,7 @@ func Bootstrap(conf Config, url string) error {
 	if err = exec(tuneQuery); err != nil {
 		return err
 	}
-
-	return nil
+	return vocab.OnActor(service, r.CreateService)
 }
 
 func (r *repo) Reset() {}

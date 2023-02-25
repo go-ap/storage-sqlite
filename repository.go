@@ -13,8 +13,8 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
-	ap "github.com/go-ap/fedbox/activitypub"
-	"github.com/go-ap/fedbox/storage"
+	"github.com/go-ap/filters"
+	"github.com/go-ap/processing"
 	"github.com/go-ap/storage-sqlite/internal/cache"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -79,7 +79,7 @@ func (r *repo) close() (err error) {
 	return
 }
 
-func (r repo) CreateService(service vocab.Service) (err error) {
+func (r repo) CreateService(service *vocab.Service) (err error) {
 	err = r.Open()
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (r repo) CreateService(service vocab.Service) (err error) {
 
 func getCollectionTypeFromIRI(i string) vocab.CollectionPath {
 	col := vocab.CollectionPath(path.Base(i))
-	if !(ap.FedBOXCollections.Contains(col) || vocab.ActivityPubCollections.Contains(col)) {
+	if !(filters.FedBOXCollections.Contains(col) || vocab.ActivityPubCollections.Contains(col)) {
 		b, _ := path.Split(i)
 		col = vocab.CollectionPath(path.Base(b))
 	}
@@ -111,7 +111,7 @@ func getCollectionTable(typ vocab.CollectionPath) vocab.CollectionPath {
 		fallthrough
 	case vocab.Following:
 		fallthrough
-	case ap.ActorsType:
+	case filters.ActorsType:
 		fallthrough
 	case vocab.Unknown:
 		return "actors"
@@ -123,9 +123,9 @@ func getCollectionTable(typ vocab.CollectionPath) vocab.CollectionPath {
 		fallthrough
 	case vocab.Likes:
 		fallthrough
-	case ap.ActivitiesType:
+	case filters.ActivitiesType:
 		return "activities"
-	case ap.ObjectsType:
+	case filters.ObjectsType:
 		fallthrough
 	case vocab.Liked:
 		fallthrough
@@ -136,7 +136,7 @@ func getCollectionTable(typ vocab.CollectionPath) vocab.CollectionPath {
 	}
 }
 
-func getCollectionTableFromFilter(f *ap.Filters) vocab.CollectionPath {
+func getCollectionTableFromFilter(f *filters.Filters) vocab.CollectionPath {
 	return getCollectionTable(f.Collection)
 }
 
@@ -147,7 +147,7 @@ func (r *repo) Load(i vocab.IRI) (vocab.Item, error) {
 	}
 	defer r.Close()
 
-	f, err := ap.FiltersFromIRI(i)
+	f, err := filters.FiltersFromIRI(i)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (r *repo) PasswordSet(it vocab.Item, pw []byte) error {
 	if err != nil {
 		return errors.Annotatef(err, "could not generate pw hash")
 	}
-	m := storage.Metadata{
+	m := processing.Metadata{
 		Pw: pw,
 	}
 	return r.SaveMetadata(m, it.GetLink())
@@ -268,14 +268,14 @@ func (r *repo) PasswordCheck(it vocab.Item, pw []byte) error {
 }
 
 // LoadMetadata
-func (r *repo) LoadMetadata(iri vocab.IRI) (*storage.Metadata, error) {
+func (r *repo) LoadMetadata(iri vocab.IRI) (*processing.Metadata, error) {
 	err := r.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
 
-	m := new(storage.Metadata)
+	m := new(processing.Metadata)
 	raw, err := loadMetadataFromTable(r.conn, iri)
 	if err != nil {
 		return nil, err
@@ -288,7 +288,7 @@ func (r *repo) LoadMetadata(iri vocab.IRI) (*storage.Metadata, error) {
 }
 
 // SaveMetadata
-func (r *repo) SaveMetadata(m storage.Metadata, iri vocab.IRI) error {
+func (r *repo) SaveMetadata(m processing.Metadata, iri vocab.IRI) error {
 	err := r.Open()
 	if err != nil {
 		return err
@@ -392,17 +392,17 @@ func isSingleItem(f Filterable) bool {
 	return false
 }
 
-func loadFromObjects(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
+func loadFromObjects(r *repo, f *filters.Filters) (vocab.ItemCollection, error) {
 	return loadFromOneTable(r, "objects", f)
 }
-func loadFromActors(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
+func loadFromActors(r *repo, f *filters.Filters) (vocab.ItemCollection, error) {
 	return loadFromOneTable(r, "actors", f)
 }
-func loadFromActivities(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
+func loadFromActivities(r *repo, f *filters.Filters) (vocab.ItemCollection, error) {
 	return loadFromOneTable(r, "activities", f)
 }
 
-func loadFromThreeTables(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
+func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.ItemCollection, error) {
 	result := make(vocab.ItemCollection, 0)
 	if obj, err := loadFromObjects(r, f); err == nil {
 		result = append(result, obj...)
@@ -416,7 +416,7 @@ func loadFromThreeTables(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
 	return result, nil
 }
 
-func loadFromOneTable(r *repo, table vocab.CollectionPath, f *ap.Filters) (vocab.ItemCollection, error) {
+func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (vocab.ItemCollection, error) {
 	conn := r.conn
 	// NOTE(marius): this doesn't seem to be working, our filter is never an IRI or Item
 	if isSingleItem(f) {
@@ -479,11 +479,11 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *ap.Filters) (vocab
 	return ret, err
 }
 
-func runObjectFilters(r *repo, ret vocab.ItemCollection, f *ap.Filters) vocab.ItemCollection {
+func runObjectFilters(r *repo, ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
 	result := make(vocab.ItemCollection, 0)
 
 	for i, it := range ret {
-		if it, _ = ap.FilterIt(it, f); it != nil {
+		if it, _ = filters.FilterIt(it, f); it != nil {
 			result = append(result, ret[i])
 		}
 	}
@@ -491,46 +491,46 @@ func runObjectFilters(r *repo, ret vocab.ItemCollection, f *ap.Filters) vocab.It
 	return result
 }
 
-func objectFilter(ret vocab.ItemCollection) *ap.Filters {
+func objectFilter(ret vocab.ItemCollection) *filters.Filters {
 	if len(ret) == 0 {
 		return nil
 	}
-	f := new(ap.Filters)
-	f.ItemKey = make(ap.CompStrs, len(ret))
+	f := new(filters.Filters)
+	f.ItemKey = make(filters.CompStrs, len(ret))
 	for i, it := range ret {
 		vocab.OnActivity(it, func(a *vocab.Activity) error {
-			f.ItemKey[i] = ap.StringEquals(a.Object.GetLink().String())
+			f.ItemKey[i] = filters.StringEquals(a.Object.GetLink().String())
 			return nil
 		})
 	}
 	return f
 }
 
-func actorFilter(ret vocab.ItemCollection) *ap.Filters {
+func actorFilter(ret vocab.ItemCollection) *filters.Filters {
 	if len(ret) == 0 {
 		return nil
 	}
-	f := new(ap.Filters)
-	f.ItemKey = make(ap.CompStrs, len(ret))
+	f := new(filters.Filters)
+	f.ItemKey = make(filters.CompStrs, len(ret))
 	for i, it := range ret {
 		vocab.OnActivity(it, func(a *vocab.Activity) error {
-			f.ItemKey[i] = ap.StringEquals(a.Actor.GetLink().String())
+			f.ItemKey[i] = filters.StringEquals(a.Actor.GetLink().String())
 			return nil
 		})
 	}
 	return f
 }
 
-func targetFilter(ret vocab.ItemCollection) *ap.Filters {
+func targetFilter(ret vocab.ItemCollection) *filters.Filters {
 	if len(ret) == 0 {
 		return nil
 	}
-	f := new(ap.Filters)
-	f.ItemKey = make(ap.CompStrs, len(ret))
+	f := new(filters.Filters)
+	f.ItemKey = make(filters.CompStrs, len(ret))
 	for i, it := range ret {
 		vocab.OnActivity(it, func(a *vocab.Activity) error {
 			if a.Target != nil {
-				f.ItemKey[i] = ap.StringEquals(a.Target.GetLink().String())
+				f.ItemKey[i] = filters.StringEquals(a.Target.GetLink().String())
 			}
 			return nil
 		})
@@ -538,7 +538,7 @@ func targetFilter(ret vocab.ItemCollection) *ap.Filters {
 	return f
 }
 
-func keepObject(f *ap.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
+func keepObject(f *filters.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
 	return func(act *vocab.Activity, ob vocab.Item) bool {
 		keep := false
 		if act.Object.GetLink().Equals(ob.GetLink(), false) {
@@ -549,7 +549,7 @@ func keepObject(f *ap.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
 	}
 }
 
-func keepActor(f *ap.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
+func keepActor(f *filters.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
 	return func(act *vocab.Activity, ob vocab.Item) bool {
 		var keep bool
 		if act.Actor.GetLink().Equals(ob.GetLink(), false) {
@@ -560,7 +560,7 @@ func keepActor(f *ap.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
 	}
 }
 
-func keepTarget(f *ap.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
+func keepTarget(f *filters.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
 	return func(act *vocab.Activity, ob vocab.Item) bool {
 		var keep bool
 		if act.Target.GetLink().Equals(ob.GetLink(), false) {
@@ -581,7 +581,7 @@ func loadTagsForObject(r *repo) func(o *vocab.Object) error {
 				if vocab.IsNil(t) || !vocab.IsIRI(t) {
 					return nil
 				}
-				f, _ := ap.FiltersFromIRI(t.GetLink())
+				f, _ := filters.FiltersFromIRI(t.GetLink())
 				if ob, err := loadFromOneTable(r, "objects", f); err == nil {
 					(*col)[i] = ob.First()
 				}
@@ -591,18 +591,18 @@ func loadTagsForObject(r *repo) func(o *vocab.Object) error {
 	}
 }
 
-func loadActorFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f *ap.Filters) vocab.ItemCollection {
+func loadActorFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
 	return loadObjectFirstLevelIRIProperties(r, ret, f)
 }
 
-func loadObjectFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f *ap.Filters) vocab.ItemCollection {
+func loadObjectFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
 	for _, it := range ret {
 		vocab.OnObject(it, loadTagsForObject(r))
 	}
 	return ret
 }
 
-func runActivityFilters(r *repo, ret vocab.ItemCollection, f *ap.Filters) vocab.ItemCollection {
+func runActivityFilters(r *repo, ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
 	// If our filter contains values for filtering the activity's object or actor, we do that here:
 	//  for the case where the corresponding values are not set, this doesn't do anything
 	toRemove := make(vocab.IRIs, 0)
@@ -632,7 +632,7 @@ func runActivityFilters(r *repo, ret vocab.ItemCollection, f *ap.Filters) vocab.
 }
 
 type (
-	iriFilterFn func(ret vocab.ItemCollection) *ap.Filters
+	iriFilterFn func(ret vocab.ItemCollection) *filters.Filters
 	keepFn      func(act *vocab.Activity, ob vocab.Item) bool
 )
 
@@ -665,7 +665,7 @@ func childFilter(r *repo, ret *vocab.ItemCollection, filterFn iriFilterFn, keepF
 	return toRemove
 }
 
-func loadFromDb(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
+func loadFromDb(r *repo, f *filters.Filters) (vocab.ItemCollection, error) {
 	conn := r.conn
 	table := getCollectionTableFromFilter(f)
 	clauses, values := getWhereClauses(f)
@@ -722,13 +722,13 @@ func loadFromDb(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
 
 	fOb.IRI = ""
 	fOb.Collection = "objects"
-	fOb.ItemKey = make(ap.CompStrs, 0)
+	fOb.ItemKey = make(filters.CompStrs, 0)
 	fActors.IRI = ""
 	fActors.Collection = "actors"
-	fActors.ItemKey = make(ap.CompStrs, 0)
+	fActors.ItemKey = make(filters.CompStrs, 0)
 	fActivities.IRI = ""
 	fActivities.Collection = "activities"
-	fActivities.ItemKey = make(ap.CompStrs, 0)
+	fActivities.ItemKey = make(filters.CompStrs, 0)
 	// Iterate through the result set
 	for rows.Next() {
 		var object string
@@ -740,21 +740,21 @@ func loadFromDb(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
 		}
 		col := getCollectionTypeFromIRI(iri)
 		if col == "objects" {
-			fOb.ItemKey = append(fOb.ItemKey, ap.StringEquals(object))
+			fOb.ItemKey = append(fOb.ItemKey, filters.StringEquals(object))
 		} else if col == "actors" {
-			fActors.ItemKey = append(fActors.ItemKey, ap.StringEquals(object))
+			fActors.ItemKey = append(fActors.ItemKey, filters.StringEquals(object))
 		} else if col == "activities" {
-			fActivities.ItemKey = append(fActivities.ItemKey, ap.StringEquals(object))
+			fActivities.ItemKey = append(fActivities.ItemKey, filters.StringEquals(object))
 		} else {
 			switch table {
 			case "activities":
-				fActivities.ItemKey = append(fActivities.ItemKey, ap.StringEquals(object))
+				fActivities.ItemKey = append(fActivities.ItemKey, filters.StringEquals(object))
 			case "actors":
-				fActors.ItemKey = append(fActors.ItemKey, ap.StringEquals(object))
+				fActors.ItemKey = append(fActors.ItemKey, filters.StringEquals(object))
 			case "objects":
 				fallthrough
 			default:
-				fOb.ItemKey = append(fOb.ItemKey, ap.StringEquals(object))
+				fOb.ItemKey = append(fOb.ItemKey, filters.StringEquals(object))
 			}
 		}
 	}
@@ -786,17 +786,17 @@ func loadFromDb(r *repo, f *ap.Filters) (vocab.ItemCollection, error) {
 func delete(l repo, it vocab.Item) error {
 	iri := it.GetLink()
 
-	table := string(ap.ObjectsType)
+	table := string(filters.ObjectsType)
 	if vocab.ActivityTypes.Contains(it.GetType()) {
-		table = string(ap.ActivitiesType)
+		table = string(filters.ActivitiesType)
 	} else if vocab.ActorTypes.Contains(it.GetType()) {
-		table = string(ap.ActorsType)
+		table = string(filters.ActorsType)
 	} else if it.GetType() == vocab.TombstoneType {
-		if strings.Contains(iri.String(), string(ap.ActorsType)) {
-			table = string(ap.ActorsType)
+		if strings.Contains(iri.String(), string(filters.ActorsType)) {
+			table = string(filters.ActorsType)
 		}
-		if strings.Contains(iri.String(), string(ap.ActivitiesType)) {
-			table = string(ap.ActivitiesType)
+		if strings.Contains(iri.String(), string(filters.ActivitiesType)) {
+			table = string(filters.ActivitiesType)
 		}
 	}
 
@@ -826,18 +826,18 @@ func save(l repo, it vocab.Item) (vocab.Item, error) {
 	tokens := []string{"?"}
 	params := []interface{}{interface{}(raw)}
 
-	table := string(ap.ObjectsType)
+	table := string(filters.ObjectsType)
 	typ := it.GetType()
 	if vocab.ActivityTypes.Contains(typ) || vocab.IntransitiveActivityTypes.Contains(typ) {
-		table = string(ap.ActivitiesType)
+		table = string(filters.ActivitiesType)
 	} else if vocab.ActorTypes.Contains(typ) {
-		table = string(ap.ActorsType)
+		table = string(filters.ActorsType)
 	} else if typ == vocab.TombstoneType {
-		if strings.Contains(iri.String(), string(ap.ActorsType)) {
-			table = string(ap.ActorsType)
+		if strings.Contains(iri.String(), string(filters.ActorsType)) {
+			table = string(filters.ActorsType)
 		}
-		if strings.Contains(iri.String(), string(ap.ActivitiesType)) {
-			table = string(ap.ActivitiesType)
+		if strings.Contains(iri.String(), string(filters.ActivitiesType)) {
+			table = string(filters.ActivitiesType)
 		}
 	}
 

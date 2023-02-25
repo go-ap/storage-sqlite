@@ -32,7 +32,7 @@ func initialize(t *testing.T, fns ...initFn) *repo {
 	file := testPath(t)
 	os.RemoveAll(path.Dir(file))
 	os.MkdirAll(path.Dir(file), 0770)
-	if err := Bootstrap(Config{Path: file}, "random-uri"); err != nil {
+	if err := Bootstrap(Config{Path: file}, nil); err != nil {
 		t.Fatalf("Unable to create tables: %s", err)
 	}
 	db, err := sql.Open("sqlite", file)
@@ -66,7 +66,7 @@ func TestBootstrap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := Bootstrap(tt.args.conf, "random-uri"); (err != nil) != tt.wantErr {
+			if err := Bootstrap(tt.args.conf, nil); (err != nil) != tt.wantErr {
 				t.Errorf("Bootstrap() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

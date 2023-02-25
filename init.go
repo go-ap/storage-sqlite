@@ -91,6 +91,6 @@ PRAGMA journal_mode = wal;
 PRAGMA busy_timeout = 5000;
 PRAGMA wal_autocheckpoint = 0;
 PRAGMA strict=ON;
-PRAGMA synchronous = NORMAL;
+--PRAGMA synchronous = NORMAL;
 `
 )
