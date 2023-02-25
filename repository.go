@@ -419,7 +419,7 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.ItemCollection, err
 func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (vocab.ItemCollection, error) {
 	conn := r.conn
 	// NOTE(marius): this doesn't seem to be working, our filter is never an IRI or Item
-	if isSingleItem(f) {
+	if isSingleItem(f) && r.cache != nil {
 		if cachedIt := r.cache.Get(f.GetLink()); cachedIt != nil {
 			return vocab.ItemCollection{cachedIt}, nil
 		}
@@ -461,7 +461,7 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 		if err != nil {
 			return ret, errors.Annotatef(err, "unable to unmarshal raw item")
 		}
-		if vocab.IsObject(it) {
+		if vocab.IsObject(it) && r.cache != nil {
 			r.cache.Set(it.GetLink(), it)
 		}
 		ret = append(ret, it)
@@ -806,7 +806,9 @@ func delete(l repo, it vocab.Item) error {
 		return errors.Annotatef(err, "query error")
 	}
 
-	l.cache.Remove(it.GetLink())
+	if l.cache != nil {
+		l.cache.Remove(it.GetLink())
+	}
 	return nil
 }
 
@@ -857,7 +859,9 @@ func save(l repo, it vocab.Item) (vocab.Item, error) {
 		}
 	}
 
-	l.cache.Set(it.GetLink(), it)
+	if l.cache != nil {
+		l.cache.Set(it.GetLink(), it)
+	}
 	return it, nil
 }
 
