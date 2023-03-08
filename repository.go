@@ -79,7 +79,7 @@ func (r *repo) close() (err error) {
 	return
 }
 
-func (r repo) CreateService(service *vocab.Service) (err error) {
+func (r *repo) CreateService(service *vocab.Service) (err error) {
 	err = r.Open()
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (r repo) CreateService(service *vocab.Service) (err error) {
 			r.errFn("error closing the db: %+s", err)
 		}
 	}()
-	it, err := save(r, service)
+	it, err := save(*r, service)
 	if err != nil {
 		r.errFn("%s %s: %s", err, it.GetType(), it.GetLink())
 	}
