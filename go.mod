@@ -4,10 +4,10 @@ go 1.18
 
 require (
 	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8
-	github.com/go-ap/activitypub v0.0.0-20230322094353-528fa9e2ca42
+	github.com/go-ap/activitypub v0.0.0-20230323123728-77b329013634
 	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
-	github.com/go-ap/filters v0.0.0-20230322094528-7e910dfd258b
-	github.com/go-ap/processing v0.0.0-20230322094514-ccecbb4ca1e4
+	github.com/go-ap/filters v0.0.0-20230323123955-4d16c6124b80
+	github.com/go-ap/processing v0.0.0-20230323123913-b2713df97a32
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/openshift/osin v1.0.1
 	golang.org/x/crypto v0.7.0
@@ -17,7 +17,7 @@ require (
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-ap/client v0.0.0-20230322094433-d3a5b06d1f78 // indirect
+	github.com/go-ap/client v0.0.0-20230323123805-a1114dc5ba4f // indirect
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
@@ -25,7 +25,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/mariusor/qstring v0.0.0-20200204164351-5a99d46de39d // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rs/xid v1.4.0 // indirect
