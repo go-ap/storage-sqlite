@@ -6,7 +6,7 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8
 	github.com/go-ap/activitypub v0.0.0-20230323123728-77b329013634
 	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
-	github.com/go-ap/filters v0.0.0-20230323123955-4d16c6124b80
+	github.com/go-ap/filters v0.0.0-20230324221035-6b4041aef7ad
 	github.com/go-ap/processing v0.0.0-20230323123913-b2713df97a32
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/openshift/osin v1.0.1
