@@ -6,11 +6,11 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8
 	github.com/go-ap/activitypub v0.0.0-20230730144252-88f76b2af358
 	github.com/go-ap/errors v0.0.0-20221205040414-01c1adfc98ea
-	github.com/go-ap/filters v0.0.0-20230730144750-aacdd7be149b
+	github.com/go-ap/filters v0.0.0-20230807085049-c8598c7a4c93
 	github.com/go-ap/processing v0.0.0-20230730144722-0ae13a5ff5f5
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/openshift/osin v1.0.1
-	golang.org/x/crypto v0.11.0
+	golang.org/x/crypto v0.12.0
 	modernc.org/sqlite v1.21.0
 )
 
@@ -32,9 +32,9 @@ require (
 	github.com/rs/zerolog v1.30.0 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
 	golang.org/x/mod v0.9.0 // indirect
-	golang.org/x/net v0.12.0 // indirect
-	golang.org/x/oauth2 v0.10.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/net v0.14.0 // indirect
+	golang.org/x/oauth2 v0.11.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
