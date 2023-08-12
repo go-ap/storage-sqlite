@@ -30,9 +30,9 @@ func testPath(t *testing.T) string {
 func initialize(t *testing.T, fns ...initFn) *repo {
 	t.Skip("something is wrong with the temp location")
 	file := testPath(t)
-	os.RemoveAll(path.Dir(file))
-	os.MkdirAll(path.Dir(file), 0770)
-	if err := Bootstrap(Config{Path: file}, nil); err != nil {
+	_ = os.RemoveAll(path.Dir(file))
+	_ = os.MkdirAll(path.Dir(file), 0770)
+	if err := Bootstrap(Config{Path: file}); err != nil {
 		t.Fatalf("Unable to create tables: %s", err)
 	}
 	db, err := sql.Open("sqlite", file)
@@ -49,27 +49,6 @@ func initialize(t *testing.T, fns ...initFn) *repo {
 		conn:  db,
 		logFn: infFn,
 		errFn: errFn,
-	}
-}
-
-func TestBootstrap(t *testing.T) {
-	type args struct {
-		conf Config
-		cl   osin.Client
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := Bootstrap(tt.args.conf, nil); (err != nil) != tt.wantErr {
-				t.Errorf("Bootstrap() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
 	}
 }
 

@@ -83,23 +83,6 @@ func (r *repo) close() (err error) {
 	return
 }
 
-func (r *repo) CreateService(service *vocab.Service) (err error) {
-	err = r.Open()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err = r.close(); err != nil {
-			r.errFn("error closing the db: %+s", err)
-		}
-	}()
-	it, err := save(*r, service)
-	if err != nil {
-		r.errFn("%s %s: %s", err, it.GetType(), it.GetLink())
-	}
-	return err
-}
-
 func getCollectionTypeFromIRI(i string) vocab.CollectionPath {
 	col := vocab.CollectionPath(path.Base(i))
 	if !(filters.FedBOXCollections.Contains(col) || vocab.ActivityPubCollections.Contains(col)) {
@@ -174,12 +157,6 @@ func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
 
 // Create
 func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
-	if col.IsObject() {
-		_, err := r.Save(col)
-		if err != nil {
-			return col, err
-		}
-	}
 	return col, nil
 }
 
