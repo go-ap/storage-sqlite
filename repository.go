@@ -146,6 +146,8 @@ func (r *repo) Load(i vocab.IRI) (vocab.Item, error) {
 	return ret, err
 }
 
+var nilItemErr = errors.Errorf("nil item")
+
 // Save
 func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
 	if err := r.Open(); err != nil {
@@ -792,6 +794,8 @@ func delete(l repo, it vocab.Item) error {
 	}
 	return nil
 }
+
+const upsertQ = "INSERT OR REPLACE INTO %s (%s) VALUES (%s);"
 
 func save(l repo, it vocab.Item) (vocab.Item, error) {
 	iri := it.GetLink()

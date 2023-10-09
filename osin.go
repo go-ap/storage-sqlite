@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/go-ap/errors"
@@ -25,8 +25,8 @@ const (
 `
 
 	createAuthorizeTable = `CREATE TABLE IF NOT EXISTS "authorize" (
-	"code" varchar constraint authorize_code_pkey PRIMARY KEY,
 	"client" varchar REFERENCES client(code),
+	"code" varchar constraint authorize_code_pkey PRIMARY KEY,
 	"expires_in" INTEGER,
 	"scope" BLOB,
 	"redirect_uri" varchar NOT NULL,
@@ -39,7 +39,7 @@ const (
 	createAccessTable = `CREATE TABLE IF NOT EXISTS "access" (
 	"client" varchar REFERENCES client(code),
 	"authorize" varchar REFERENCES authorize(code),
-	"previous" varchar NOT NULL,
+	"previous" varchar,
 	"token" varchar NOT NULL,
 	"refresh_token" varchar NOT NULL,
 	"expires_in" INTEGER,
@@ -57,6 +57,38 @@ const (
 `
 )
 
+func bootstrapOsin(r repo) error {
+	if err := r.Open(); err != nil {
+		return err
+	}
+	defer r.Close()
+
+	exec := func(conn *sql.DB, qRaw string, par ...any) error {
+		qSql := fmt.Sprintf(qRaw, par...)
+		r.logFn("Executing %s", stringClean(qSql))
+		if _, err := conn.Exec(qSql); err != nil {
+			r.errFn("Failed: %s", err)
+			return errors.Annotatef(err, "unable to execute: %s", stringClean(qSql))
+		}
+		r.logFn("Success!")
+		return nil
+	}
+
+	if err := exec(r.conn, createClientTable); err != nil {
+		return err
+	}
+	if err := exec(r.conn, createAuthorizeTable); err != nil {
+		return err
+	}
+	if err := exec(r.conn, createAccessTable); err != nil {
+		return err
+	}
+	if err := exec(r.conn, createRefreshTable); err != nil {
+		return err
+	}
+	return nil
+}
+
 var encodeFn = func(v any) ([]byte, error) {
 	buf := bytes.Buffer{}
 	err := json.NewEncoder(&buf).Encode(v)
@@ -72,10 +104,11 @@ func (r *repo) Clone() osin.Storage {
 	// NOTICE(marius): osin, uses this before saving the Authorization data, and it fails if the database
 	// is not closed. This is why the tuneQuery journal_mode = WAL is needed.
 	r.Close()
-	db, err := New(Config{Path: path.Dir(r.path), LogFn: r.logFn, ErrFn: r.errFn})
+	db, err := New(Config{Path: filepath.Dir(r.path), LogFn: r.logFn, ErrFn: r.errFn})
 	if err != nil {
 		r.errFn("unable to clone sqlite repository: %+s", err)
 	}
+	db.cache = r.cache
 	return db
 }
 
@@ -163,10 +196,12 @@ func (r *repo) GetClient(id string) (osin.Client, error) {
 const updateClient = "UPDATE client SET (secret, redirect_uri, extra) = (?, ?, ?) WHERE code=?"
 const updateClientNoExtra = "UPDATE client SET (secret, redirect_uri) = (?, ?) WHERE code=?"
 
+var nilClientErr = errors.Newf("nil client")
+
 // UpdateClient
 func (r *repo) UpdateClient(c osin.Client) error {
 	if c == nil {
-		return errors.Newf("invalid nil client to update")
+		return nilClientErr
 	}
 	if err := r.Open(); err != nil {
 		return err
@@ -203,7 +238,7 @@ const createClient = "INSERT INTO client (code, secret, redirect_uri, extra) VAL
 // CreateClient
 func (r *repo) CreateClient(c osin.Client) error {
 	if c == nil {
-		return errors.Newf("invalid nil client to create")
+		return nilClientErr
 	}
 	if err := r.Open(); err != nil {
 		return err
@@ -336,7 +371,7 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 // LoadAuthorize looks up AuthorizeData by a code.
 func (r *repo) LoadAuthorize(code string) (*osin.AuthorizeData, error) {
 	if code == "" {
-		return nil, errors.NotFoundf("Empty authorize code")
+		return nil, errors.Newf("Empty authorize code")
 	}
 	if err := r.Open(); err != nil {
 		return nil, err
@@ -475,7 +510,7 @@ var ReadOnlyTxn = sql.TxOptions{
 // LoadAccess retrieves access data by token. Client information MUST be loaded together.
 func (r *repo) LoadAccess(code string) (*osin.AccessData, error) {
 	if code == "" {
-		return nil, errors.NotFoundf("Empty access code")
+		return nil, errors.Newf("Empty access code")
 	}
 	if err := r.Open(); err != nil {
 		return nil, err
@@ -510,7 +545,7 @@ const loadRefresh = "SELECT access_token FROM refresh WHERE token=? LIMIT 1"
 // LoadRefresh retrieves refresh AccessData. Client information MUST be loaded together.
 func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
 	if code == "" {
-		return nil, errors.NotFoundf("Empty refresh code")
+		return nil, errors.Newf("Empty refresh code")
 	}
 	if err := r.Open(); err != nil {
 		return nil, err

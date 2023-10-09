@@ -2,140 +2,139 @@ package sqlite
 
 import (
 	"database/sql"
-	"os"
-	"path"
-	"reflect"
+	"path/filepath"
 	"testing"
+	"time"
 
-	log "git.sr.ht/~mariusor/lw"
+	"github.com/carlmjohnson/be"
+	"github.com/go-ap/errors"
 	"github.com/openshift/osin"
-)
-
-var (
-	infFn = func(m string, p ...interface{}) {
-		log.Dev(log.SetLevel(log.DebugLevel)).Infof(m, p...)
-	}
-	errFn = func(m string, p ...interface{}) {
-		log.Dev(log.SetLevel(log.DebugLevel)).Errorf(m, p...)
-	}
 )
 
 type initFn func(db *sql.DB) error
 
-func testPath(t *testing.T) string {
-	where := t.TempDir()
-	return path.Join(where, path.Clean(t.Name()))
-}
+func initializeOsinDb(t *testing.T, fns ...initFn) repo {
+	dbPath := filepath.Join(t.TempDir(), "storage.sqlite")
+	r := repo{path: dbPath, logFn: t.Logf, errFn: t.Errorf}
+	be.NilErr(t, bootstrapOsin(r))
 
-func initialize(t *testing.T, fns ...initFn) *repo {
-	t.Skip("something is wrong with the temp location")
-	file := testPath(t)
-	_ = os.RemoveAll(path.Dir(file))
-	_ = os.MkdirAll(path.Dir(file), 0770)
-	if err := Bootstrap(Config{Path: file}); err != nil {
-		t.Fatalf("Unable to create tables: %s", err)
-	}
-	db, err := sql.Open("sqlite", file)
-	if err != nil {
-		t.Fatalf("Unable to initialize sqlite db: %s", err)
-	}
+	be.NilErr(t, r.Open())
 	for _, fn := range fns {
-		if err := fn(db); err != nil {
-			t.Fatalf("Unable to execute initializing function %s", err)
-		}
+		be.NilErr(t, fn(r.conn))
 	}
-	return &repo{
-		path:  file,
-		conn:  db,
-		logFn: infFn,
-		errFn: errFn,
-	}
+	return r
 }
 
 func Test_repo_Clone(t *testing.T) {
-	tests := []struct {
-		name string
-		want osin.Storage
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t)
-			if got := s.Clone(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Clone() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	s := initializeOsinDb(t)
+	got := s.Clone()
+
+	cloned, ok := got.(*repo)
+	be.True(t, ok)
+	s.logFn = nil
+	s.errFn = nil
+	cloned.logFn = nil
+	cloned.errFn = nil
+	be.DeepEqual[*repo](t, &s, cloned)
 }
 
 func Test_repo_CreateClient(t *testing.T) {
-	type args struct {
-		c osin.Client
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		wantErr bool
+		name string
+		init []initFn
+		arg  osin.Client
+		err  error
 	}{
-		// TODO: Add test cases.
+		{
+			name: "empty",
+			arg:  nil,
+			err:  nilClientErr,
+		},
+		{
+			name: "default client",
+			arg:  &osin.DefaultClient{Id: "test", Secret: "test", RedirectUri: "/"},
+		},
+		{
+			name: "default client with user data",
+			arg:  &osin.DefaultClient{Id: "test", Secret: "test", RedirectUri: "/", UserData: "https://example.com"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.CreateClient(tt.args.c); (err != nil) != tt.wantErr {
-				t.Errorf("CreateClient() error = %v, wantErr %v", err, tt.wantErr)
+			s := initializeOsinDb(t, tt.init...)
+			err := s.CreateClient(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
+
+			if tt.arg == nil {
+				return
+			}
+
+			err = s.Open()
+			be.NilErr(t, err)
+
+			sel := "SELECT code, secret, redirect_uri, extra from client where code=?;"
+			res, err := s.conn.Query(sel, tt.arg.GetId())
+			be.NilErr(t, err)
+
+			for res.Next() {
+				var code string
+				var secret string
+				var redir string
+				var extra []byte
+
+				err := res.Scan(&code, &secret, &redir, &extra)
+				be.NilErr(t, err)
+
+				be.Equal(t, tt.arg.GetId(), code)
+				be.Equal(t, tt.arg.GetSecret(), secret)
+				be.Equal(t, tt.arg.GetRedirectUri(), redir)
+
+				if tt.arg.GetUserData() != nil {
+					ud, err := assertToBytes(tt.arg.GetUserData())
+					be.NilErr(t, err)
+					be.DeepEqual(t, ud, extra)
+				}
 			}
 		})
 	}
 }
 
 func Test_repo_GetClient(t *testing.T) {
-	type args struct {
-		code string
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		want    osin.Client
-		wantErr bool
+		name string
+		init []initFn
+		arg  string
+		want osin.Client
+		err  error
 	}{
 		{
-			name:    "missing",
-			args:    args{code: "missing"},
-			want:    nil,
-			wantErr: false,
+			name: "missing",
+			arg:  "missing",
 		},
 		{
 			name: "found",
 			init: []initFn{
 				func(db *sql.DB) error {
-					_, err := db.Exec(createClient, "found", "secret", "redirURI", interface{}("extra123"))
+					_, err := db.Exec(createClient, "found", "secret", "redirURI", any("extra123"))
 					return err
 				},
 			},
-			args: args{code: "found"},
+			arg: "found",
 			want: &osin.DefaultClient{
 				Id:          "found",
 				Secret:      "secret",
 				RedirectUri: "redirURI",
-				UserData:    interface{}("extra123"),
+				UserData:    any("extra123"),
 			},
-			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			got, err := s.GetClient(tt.args.code)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetClient() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if (tt.want != nil && !reflect.DeepEqual(got, tt.want)) || got == nil {
-				t.Errorf("GetClient() got = %v, want %v", got, tt.want)
+			s := initializeOsinDb(t, tt.init...)
+			got, err := s.GetClient(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
+			if tt.want != nil {
+				be.DeepEqual(t, tt.want, got)
 			}
 		})
 	}
@@ -143,21 +142,20 @@ func Test_repo_GetClient(t *testing.T) {
 
 func Test_repo_ListClients(t *testing.T) {
 	tests := []struct {
-		name    string
-		init    []initFn
-		want    []osin.Client
-		wantErr bool
+		name string
+		init []initFn
+		want []osin.Client
+		err  error
 	}{
 		{
-			name:    "missing",
-			want:    []osin.Client{},
-			wantErr: false,
+			name: "missing",
+			want: []osin.Client{},
 		},
 		{
 			name: "found",
 			init: []initFn{
 				func(db *sql.DB) error {
-					_, err := db.Exec(createClient, "found", "secret", "redirURI", interface{}("extra123"))
+					_, err := db.Exec(createClient, "found", "secret", "redirURI", any("extra123"))
 					return err
 				},
 			},
@@ -166,313 +164,369 @@ func Test_repo_ListClients(t *testing.T) {
 					Id:          "found",
 					Secret:      "secret",
 					RedirectUri: "redirURI",
-					UserData:    interface{}("extra123"),
+					UserData:    any("extra123"),
 				},
 			},
-			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
+			s := initializeOsinDb(t, tt.init...)
 			got, err := s.ListClients()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ListClients() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ListClients() got = %v, want %v", got, tt.want)
-			}
+			checkErrorsEqual(t, tt.err, err)
+			be.DeepEqual(t, tt.want, got)
 		})
 	}
 }
 
+var hellTimeStr = "2666-06-06 06:06:06"
+var hellTime, _ = time.Parse("2006-01-02 15:04:05", hellTimeStr)
+
 func Test_repo_LoadAccess(t *testing.T) {
-	type args struct {
-		code string
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		want    *osin.AccessData
-		wantErr bool
+		name string
+		init []initFn
+		arg  string
+		want *osin.AccessData
+		err  error
 	}{
-		// TODO: Add test cases.
+		{
+			name: "empty",
+			arg:  "",
+			want: nil,
+			err:  errors.Newf("Empty access code"),
+		},
+		{
+			name: "find one",
+			arg:  "one",
+			init: []initFn{
+				func(db *sql.DB) error {
+					db.Exec(createClient, "client", "secret", "redir", "extra123")
+					db.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
+					_, err := db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "scope", "redir", hellTimeStr, "extra")
+					return err
+				},
+			},
+			want: &osin.AccessData{
+				Client: &osin.DefaultClient{
+					Id:          "client",
+					Secret:      "secret",
+					RedirectUri: "redir",
+					UserData:    "extra123",
+				},
+				AuthorizeData: &osin.AuthorizeData{
+					Client: &osin.DefaultClient{
+						Id:          "client",
+						Secret:      "secret",
+						RedirectUri: "redir",
+						UserData:    "extra123",
+					},
+					Code:        "auth",
+					ExpiresIn:   666,
+					Scope:       "scop",
+					RedirectUri: "redir",
+					State:       "state",
+					CreatedAt:   hellTime,
+					UserData:    "extra123",
+				},
+				AccessToken:  "one",
+				RefreshToken: "ref",
+				ExpiresIn:    666,
+				Scope:        "scope",
+				RedirectUri:  "redir",
+				CreatedAt:    hellTime,
+				UserData:     "extra",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			got, err := s.LoadAccess(tt.args.code)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("LoadAccess() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("LoadAccess() got = %v, want %v", got, tt.want)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			got, err := s.LoadAccess(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
+			be.DeepEqual(t, tt.want, got)
 		})
 	}
 }
 
 func Test_repo_LoadAuthorize(t *testing.T) {
-	type args struct {
-		code string
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		want    *osin.AuthorizeData
-		wantErr bool
+		name string
+		init []initFn
+		arg  string
+		want *osin.AuthorizeData
+		err  error
 	}{
-		// TODO: Add test cases.
+		{
+			name: "empty",
+			arg:  "",
+			want: nil,
+			err:  errors.Newf("Empty authorize code"),
+		},
+		{
+			name: "find one",
+			arg:  "one",
+			init: []initFn{
+				func(db *sql.DB) error {
+					db.Exec(createClient, "client", "secret", "redir", "extra123")
+					_, err := db.Exec(saveAuthorize, "client", "one", "666", "scop", "redir", "state", hellTimeStr, "extra123")
+					return err
+				},
+			},
+			want: &osin.AuthorizeData{
+				Client: &osin.DefaultClient{
+					Id:          "client",
+					Secret:      "secret",
+					RedirectUri: "redir",
+					UserData:    "extra123",
+				},
+				Code:        "one",
+				ExpiresIn:   666,
+				Scope:       "scop",
+				RedirectUri: "redir",
+				State:       "state",
+				CreatedAt:   hellTime,
+				UserData:    "extra123",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			got, err := s.LoadAuthorize(tt.args.code)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("LoadAuthorize() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("LoadAuthorize() got = %v, want %v", got, tt.want)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			got, err := s.LoadAuthorize(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
+			be.DeepEqual(t, tt.want, got)
 		})
 	}
 }
 
 func Test_repo_LoadRefresh(t *testing.T) {
-	type args struct {
-		code string
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		want    *osin.AccessData
-		wantErr bool
+		name string
+		init []initFn
+		arg  string
+		want *osin.AccessData
+		err  error
 	}{
-		// TODO: Add test cases.
+		{
+			name: "empty",
+			arg:  "",
+			want: nil,
+			err:  errors.Newf("Empty refresh code"),
+		},
+		{
+			name: "find refresh",
+			arg:  "ref1",
+			init: []initFn{
+				func(db *sql.DB) error {
+					db.Exec(createClient, "client", "secret", "redir", "extra123")
+					db.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
+					db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "scope", "redir", hellTimeStr, "extra")
+					_, err := db.Exec(saveRefresh, "ref1", "one")
+					return err
+				},
+			},
+			want: &osin.AccessData{
+				Client: &osin.DefaultClient{
+					Id:          "client",
+					Secret:      "secret",
+					RedirectUri: "redir",
+					UserData:    "extra123",
+				},
+				AuthorizeData: &osin.AuthorizeData{
+					Client: &osin.DefaultClient{
+						Id:          "client",
+						Secret:      "secret",
+						RedirectUri: "redir",
+						UserData:    "extra123",
+					},
+					Code:        "auth",
+					ExpiresIn:   666,
+					Scope:       "scop",
+					RedirectUri: "redir",
+					State:       "state",
+					CreatedAt:   hellTime,
+					UserData:    "extra123",
+				},
+				AccessToken:  "one",
+				RefreshToken: "ref",
+				ExpiresIn:    666,
+				Scope:        "scope",
+				RedirectUri:  "redir",
+				CreatedAt:    hellTime,
+				UserData:     "extra",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			got, err := s.LoadRefresh(tt.args.code)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("LoadRefresh() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("LoadRefresh() got = %v, want %v", got, tt.want)
+			s := initializeOsinDb(t, tt.init...)
+			got, err := s.LoadRefresh(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
+			if tt.want != nil {
+				be.DeepEqual(t, tt.want, got)
 			}
 		})
 	}
 }
 
-func Test_repo_Open(t *testing.T) {
+func Test_repo_openOsin(t *testing.T) {
 	tests := []struct {
-		name    string
-		init    []initFn
-		wantErr bool
+		name string
+		init []initFn
+		err  error
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.Open(); (err != nil) != tt.wantErr {
-				t.Errorf("Open() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			err := s.Open()
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }
 
 func Test_repo_RemoveAccess(t *testing.T) {
-	type args struct {
-		code string
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		wantErr bool
+		name string
+		init []initFn
+		arg  string
+		err  error
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.RemoveAccess(tt.args.code); (err != nil) != tt.wantErr {
-				t.Errorf("RemoveAccess() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			err := s.RemoveAccess(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }
 
 func Test_repo_RemoveAuthorize(t *testing.T) {
-	type args struct {
-		code string
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		wantErr bool
+		name string
+		init []initFn
+		arg  string
+		err  error
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.RemoveAuthorize(tt.args.code); (err != nil) != tt.wantErr {
-				t.Errorf("RemoveAuthorize() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			err := s.RemoveAuthorize(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }
 
 func Test_repo_RemoveClient(t *testing.T) {
-	type args struct {
-		id string
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		wantErr bool
+		name string
+		init []initFn
+		arg  string
+		err  error
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.RemoveClient(tt.args.id); (err != nil) != tt.wantErr {
-				t.Errorf("RemoveClient() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			err := s.RemoveClient(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }
 
 func Test_repo_RemoveRefresh(t *testing.T) {
-	type args struct {
-		code string
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		wantErr bool
+		name string
+		init []initFn
+		arg  string
+		err  error
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.RemoveRefresh(tt.args.code); (err != nil) != tt.wantErr {
-				t.Errorf("RemoveRefresh() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			err := s.RemoveRefresh(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }
 
 func Test_repo_SaveAccess(t *testing.T) {
-	type args struct {
-		data *osin.AccessData
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		wantErr bool
+		name string
+		init []initFn
+		arg  *osin.AccessData
+		err  error
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.SaveAccess(tt.args.data); (err != nil) != tt.wantErr {
-				t.Errorf("SaveAccess() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			err := s.SaveAccess(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }
 
 func Test_repo_SaveAuthorize(t *testing.T) {
-	type args struct {
-		data *osin.AuthorizeData
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		wantErr bool
+		name string
+		init []initFn
+		arg  *osin.AuthorizeData
+		err  error
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.SaveAuthorize(tt.args.data); (err != nil) != tt.wantErr {
-				t.Errorf("SaveAuthorize() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			err := s.SaveAuthorize(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }
 
 func Test_repo_UpdateClient(t *testing.T) {
-	type args struct {
-		c osin.Client
-	}
 	tests := []struct {
-		name    string
-		init    []initFn
-		args    args
-		wantErr bool
+		name string
+		init []initFn
+		arg  osin.Client
+		err  error
 	}{
 		{
-			name:    "empty",
-			args:    args{nil},
-			wantErr: true,
+			name: "empty",
+			err:  nilClientErr,
 		},
 		{
-			name: "plain",
+			name: "basic",
 			init: []initFn{
 				func(db *sql.DB) error {
-					_, err := db.Exec(createClient, "found", "test", "test", interface{}("test"))
+					_, err := db.Exec(createClient, "found", "secret", "redirURI", any("extra123"))
 					return err
 				},
 			},
-			args: args{
-				&osin.DefaultClient{
-					Id:          "found",
-					Secret:      "secret",
-					RedirectUri: "redirURI",
-					UserData:    interface{}("extra123"),
-				},
+			arg: &osin.DefaultClient{
+				Id:          "found",
+				Secret:      "secret",
+				RedirectUri: "redirURI",
+				UserData:    any("extra123"),
 			},
-			wantErr: false,
-		},
-		{
-			name: "plain",
-			args: args{
-				&osin.DefaultClient{
-					Id:          "found",
-					Secret:      "secret",
-					RedirectUri: "redirURI",
-					UserData:    nil,
-				},
-			},
-			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := initialize(t, tt.init...)
-			if err := s.UpdateClient(tt.args.c); (err != nil) != tt.wantErr {
-				t.Errorf("UpdateClient() error = %v, wantErr %v", err, tt.wantErr)
-			}
+			s := initializeOsinDb(t, tt.init...)
+			err := s.UpdateClient(tt.arg)
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }

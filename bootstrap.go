@@ -3,9 +3,14 @@ package sqlite
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-ap/errors"
 )
+
+func stringClean(qSql string) string {
+	return strings.ReplaceAll(qSql, "\n", "")
+}
 
 func Clean(conf Config) error {
 	p, err := getFullPath(conf)

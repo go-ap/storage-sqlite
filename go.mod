@@ -3,7 +3,7 @@ module github.com/go-ap/storage-sqlite
 go 1.18
 
 require (
-	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8
+	github.com/carlmjohnson/be v0.23.1
 	github.com/go-ap/activitypub v0.0.0-20231003111253-1fba3772399b
 	github.com/go-ap/errors v0.0.0-20231003111023-183eef4b31b7
 	github.com/go-ap/filters v0.0.0-20231003111901-6cdff8a45ebc
@@ -16,6 +16,7 @@ require (
 
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
+	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ap/client v0.0.0-20231003111330-2fea5479914b // indirect
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73 // indirect
