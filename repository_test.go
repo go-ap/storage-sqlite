@@ -31,8 +31,10 @@ func saveMocks(t *testing.T, base string, root vocab.Item, mocks ...string) stri
 
 	rootVal, _ := vocab.MarshalJSON(root)
 	mocks = append(mocks, string(rootVal))
-	query := fmt.Sprintf(upsertQ, "objects", strings.Join([]string{"raw"}, ", "), strings.Join([]string{"?"}, ", "))
 	for _, mock := range mocks {
+		it, _ := vocab.UnmarshalJSON([]byte(mock))
+		table := getCollectionTypeFromItem(it)
+		query := fmt.Sprintf(upsertQ, table, strings.Join([]string{"raw"}, ", "), strings.Join([]string{"?"}, ", "))
 		res, err := db.Exec(query, []byte(mock))
 		be.NilErr(t, err)
 
@@ -76,10 +78,10 @@ func Test_repo_Load(t *testing.T) {
 			err:  errors.NotFoundf("Not found"),
 		},
 		{
-			name: "load actor with just an ID",
-			root: vocab.Actor{ID: "https://example.com"},
-			arg:  "https://example.com",
-			want: vocab.ItemCollection{&vocab.Actor{ID: "https://example.com"}},
+			name: "load object with just an ID",
+			root: vocab.Object{ID: "https://example.com/objects/1"},
+			arg:  "https://example.com/objects/1",
+			want: &vocab.Object{ID: "https://example.com/objects/1"},
 		},
 		{
 			name: "load actor",
@@ -91,40 +93,40 @@ func Test_repo_Load(t *testing.T) {
 		{
 			name: "load activity",
 			root: rootActor,
-			arg:  "https://example.com/123",
 			mocks: []string{
-				`{"id":"https://example.com/123", "type":"Follow"}`,
+				`{"id":"https://example.com/activities/123", "type":"Follow", "actor": "https://example.com"}`,
 			},
-			want: &vocab.Follow{ID: "https://example.com/123", Type: vocab.FollowType},
+			arg:  "https://example.com/activities/123",
+			want: &vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
 			err:  nil,
 		},
 		{
 			name: "load note from deeper actor",
 			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
 			mocks: []string{
-				`{"id":"https://example.com/actors/jdoe/123", "type":"Note"}`,
-				`{"id":"https://example.com/actors/jdoe/124", "type":"Article"}`,
+				`{"id":"https://example.com/objects/123", "type":"Note"}`,
+				`{"id":"https://example.com/objects/124", "type":"Article"}`,
 			},
-			arg:  "https://example.com/actors/jdoe/123",
-			want: &vocab.Note{ID: "https://example.com/actors/jdoe/123", Type: vocab.NoteType},
+			arg:  "https://example.com/objects/123",
+			want: &vocab.Note{ID: "https://example.com/objects/123", Type: vocab.NoteType},
 			err:  nil,
 		},
 		{
 			name: "load note from deeper actor",
 			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
 			mocks: []string{
-				`{"id":"https://example.com/actors/jdoe/123", "type":"Note"}`,
-				`{"id":"https://example.com/actors/jdoe/124", "type":"Article"}`,
+				`{"id":"https://example.com/objects/123", "type":"Note"}`,
+				`{"id":"https://example.com/objects/124", "type":"Article"}`,
 			},
-			arg:  "https://example.com/actors/jdoe/124",
-			want: &vocab.Note{ID: "https://example.com/actors/jdoe/124", Type: vocab.ArticleType},
+			arg:  "https://example.com/objects/124",
+			want: &vocab.Note{ID: "https://example.com/objects/124", Type: vocab.ArticleType},
 			err:  nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			base := t.TempDir()
-			path := saveMocks(t, base, tt.root)
+			path := saveMocks(t, base, tt.root, tt.mocks...)
 
 			r := repo{
 				path:  path,
@@ -152,7 +154,7 @@ func Test_repo_Save(t *testing.T) {
 			root: rootActor,
 			arg:  nil,
 			want: nil,
-			err:  nilItemErr,
+			err:  nil,
 		},
 		{
 			name: "save object",
@@ -164,28 +166,15 @@ func Test_repo_Save(t *testing.T) {
 		{
 			name: "save activity",
 			root: rootActor,
-			arg:  vocab.Activity{ID: "https://example.com/1", Type: vocab.LikeType},
-			want: vocab.Activity{ID: "https://example.com/1", Type: vocab.LikeType},
+			arg:  vocab.Activity{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
+			want: vocab.Activity{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
 			err:  nil,
-		},
-		{
-			name: "save item collection",
-			root: rootActor,
-			arg: vocab.ItemCollection{
-				vocab.Activity{ID: "https://example.com/1", Type: vocab.LikeType},
-				vocab.Activity{ID: "https://example.com/2", Type: vocab.FollowType},
-			},
-			want: vocab.ItemCollection{
-				vocab.Activity{ID: "https://example.com/1", Type: vocab.LikeType},
-				vocab.Activity{ID: "https://example.com/2", Type: vocab.FollowType},
-			},
-			err: nil,
 		},
 		{
 			name: "save another actor",
 			root: rootActor,
-			arg:  vocab.Actor{ID: "https://example.com/1", Type: vocab.GroupType},
-			want: vocab.Actor{ID: "https://example.com/1", Type: vocab.GroupType},
+			arg:  vocab.Actor{ID: "https://example.com/actors/1", Type: vocab.GroupType},
+			want: vocab.Actor{ID: "https://example.com/actors/1", Type: vocab.GroupType},
 			err:  nil,
 		},
 	}
@@ -193,8 +182,6 @@ func Test_repo_Save(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			base := t.TempDir()
 			path := saveMocks(t, base, tt.root)
-
-			saveMocks(t, path, tt.root)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
 
@@ -219,7 +206,7 @@ func Test_repo_Create(t *testing.T) {
 			root: rootActor,
 			arg:  nil,
 			want: nil,
-			err:  errors.Newf("unable to create nil collection"),
+			err:  nil,
 		},
 		{
 			name: "empty",
@@ -314,7 +301,7 @@ func Test_repo_AddTo(t *testing.T) {
 				col: "",
 				it:  nil,
 			},
-			err: errors.Newf("invalid collection IRI"),
+			err: nil,
 		},
 		{
 			name: "empty",

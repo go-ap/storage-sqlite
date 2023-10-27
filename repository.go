@@ -92,6 +92,28 @@ func getCollectionTypeFromIRI(i string) vocab.CollectionPath {
 	return getCollectionTable(col)
 }
 
+func getCollectionTypeFromItem(it vocab.Item) vocab.CollectionPath {
+	switch {
+	case vocab.ActorTypes.Contains(it.GetType()):
+		return "actors"
+	case vocab.ActivityTypes.Contains(it.GetType()):
+		return "activities"
+	case vocab.IntransitiveActivityTypes.Contains(it.GetType()):
+		return "activities"
+	default:
+		if _, isActor := it.(*vocab.Person); isActor {
+			return "actors"
+		}
+		if _, isActivity := it.(*vocab.Activity); isActivity {
+			return "activities"
+		}
+		if _, isActivity := it.(*vocab.IntransitiveActivity); isActivity {
+			return "activities"
+		}
+		return "objects"
+	}
+}
+
 func getCollectionTable(typ vocab.CollectionPath) vocab.CollectionPath {
 	switch typ {
 	case vocab.Followers:
@@ -117,9 +139,9 @@ func getCollectionTable(typ vocab.CollectionPath) vocab.CollectionPath {
 	case vocab.Liked:
 		fallthrough
 	case vocab.Replies:
-		fallthrough
-	default:
 		return "objects"
+	default:
+		return ""
 	}
 }
 
@@ -179,6 +201,9 @@ func (r *repo) RemoveFrom(col vocab.IRI, it vocab.Item) error {
 }
 
 func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
+	if vocab.IsNil(it) {
+		return nil
+	}
 	if r.conn == nil {
 		return errors.Newf("nil sql connection")
 	}
@@ -204,6 +229,9 @@ func (r *repo) AddTo(col vocab.IRI, it vocab.Item) error {
 
 // Delete
 func (r *repo) Delete(it vocab.Item) error {
+	if vocab.IsNil(it) {
+		return nil
+	}
 	err := r.Open()
 	defer r.Close()
 	if err != nil {
@@ -800,6 +828,10 @@ func delete(l repo, it vocab.Item) error {
 const upsertQ = "INSERT OR REPLACE INTO %s (%s) VALUES (%s);"
 
 func save(l repo, it vocab.Item) (vocab.Item, error) {
+	if vocab.IsNil(it) {
+		return nil, nil
+	}
+
 	iri := it.GetLink()
 
 	if err := flattenCollections(it); err != nil {
