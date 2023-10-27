@@ -8,7 +8,7 @@ MAKEFLAGS += --no-builtin-rules
 GO ?= go
 TEST := $(GO) test
 TEST_FLAGS ?= -v
-TEST_TARGET ?= . ./internal/...
+TEST_TARGET ?= .
 GO111MODULE = on
 PROJECT_NAME := $(shell basename $(PWD))
 

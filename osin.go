@@ -223,6 +223,7 @@ func (r *repo) UpdateClient(c osin.Client) error {
 		q = updateClient
 		params = append(params, interface{}(data))
 	}
+	params = append(params, c.GetId())
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	if _, err := r.conn.ExecContext(ctx, q, params...); err != nil {
@@ -472,7 +473,8 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string) (*osin.AccessDat
 	} else if err != nil {
 		return nil, errors.Annotatef(err, "Unable to load access token")
 	}
-	var client, authorize, prev, createdAt string
+	var createdAt string
+	var client, authorize, prev sql.NullString
 	for rows.Next() {
 		a = new(osin.AccessData)
 		err = rows.Scan(&client, &authorize, &prev, &a.AccessToken, &a.RefreshToken, &a.ExpiresIn, &a.RedirectUri,
@@ -489,14 +491,14 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string) (*osin.AccessDat
 		break
 	}
 
-	if len(client) > 0 {
-		a.Client, _ = getClient(conn, ctx, client)
+	if client.Valid {
+		a.Client, _ = getClient(conn, ctx, client.String)
 	}
-	if len(authorize) > 0 {
-		a.AuthorizeData, _ = loadAuthorize(conn, ctx, authorize)
+	if authorize.Valid {
+		a.AuthorizeData, _ = loadAuthorize(conn, ctx, authorize.String)
 	}
-	if len(prev) > 0 {
-		a.AccessData, _ = loadAccess(conn, ctx, prev)
+	if prev.Valid {
+		a.AccessData, _ = loadAccess(conn, ctx, prev.String)
 	}
 
 	return a, nil

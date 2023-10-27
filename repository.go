@@ -16,10 +16,10 @@ import (
 	"strings"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/cache"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
 	"github.com/go-ap/processing"
-	"github.com/go-ap/storage-sqlite/internal/cache"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -403,7 +403,7 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 	conn := r.conn
 	// NOTE(marius): this doesn't seem to be working, our filter is never an IRI or Item
 	if isSingleItem(f) && r.cache != nil {
-		if cachedIt := r.cache.Get(f.GetLink()); cachedIt != nil {
+		if cachedIt := r.cache.Load(f.GetLink()); cachedIt != nil {
 			return vocab.ItemCollection{cachedIt}, nil
 		}
 	}
@@ -445,7 +445,7 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 			return ret, errors.Annotatef(err, "unable to unmarshal raw item")
 		}
 		if vocab.IsObject(it) && r.cache != nil {
-			r.cache.Set(it.GetLink(), it)
+			r.cache.Store(it.GetLink(), it)
 		}
 		ret = append(ret, it)
 	}
@@ -790,7 +790,7 @@ func delete(l repo, it vocab.Item) error {
 	}
 
 	if l.cache != nil {
-		l.cache.Remove(it.GetLink())
+		l.cache.Delete(it.GetLink())
 	}
 	return nil
 }
@@ -845,7 +845,7 @@ func save(l repo, it vocab.Item) (vocab.Item, error) {
 	}
 
 	if l.cache != nil {
-		l.cache.Set(it.GetLink(), it)
+		l.cache.Store(it.GetLink(), it)
 	}
 	return it, nil
 }
