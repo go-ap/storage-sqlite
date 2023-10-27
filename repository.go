@@ -661,7 +661,8 @@ func loadFromDb(r *repo, f *filters.Filters) (vocab.ItemCollection, error) {
 	//    Then we load from the corresponding table using `iri LIKE IRI%` criteria
 	//  3. IRI corresponds to an object: we load directly from the corresponding table.
 	selCnt := fmt.Sprintf("SELECT COUNT(iri) FROM %s WHERE %s", table, strings.Join(clauses, " AND "))
-	if err := conn.QueryRow(selCnt, values...).Scan(&total); err != nil && err != sql.ErrNoRows {
+	err := conn.QueryRow(selCnt, values...).Scan(&total)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, errors.Annotatef(err, "unable to count all rows")
 	}
 	if total > 0 {
@@ -685,7 +686,8 @@ func loadFromDb(r *repo, f *filters.Filters) (vocab.ItemCollection, error) {
 		return nil, errors.NotFoundf("Not found")
 	}
 	colCntQ := fmt.Sprintf("SELECT COUNT(iri) FROM %s WHERE %s", "collections", iriClause)
-	if err := conn.QueryRow(colCntQ, iriValue).Scan(&total); err != nil && err != sql.ErrNoRows {
+	err = conn.QueryRow(colCntQ, iriValue).Scan(&total)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, errors.Annotatef(err, "unable to count all rows")
 	}
 	if total == 0 && vocab.ActivityPubCollections.Contains(f.Collection) && !MandatoryCollections.Contains(f.Collection) {

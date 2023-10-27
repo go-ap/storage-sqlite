@@ -13,17 +13,21 @@ import (
 )
 
 func bootstrap(t *testing.T, base string) {
+	t.Helper()
 	err := Bootstrap(Config{Path: base, LogFn: t.Logf, ErrFn: t.Errorf})
 	be.NilErr(t, err)
 }
 
-func saveMocks(t *testing.T, base string, root vocab.Item, mocks ...string) {
+func saveMocks(t *testing.T, base string, root vocab.Item, mocks ...string) string {
+	t.Helper()
 	bootstrap(t, base)
 
-	r := repo{path: base, logFn: defaultLogFn, errFn: defaultLogFn}
+	p, _ := getFullPath(Config{Path: base})
+	r := repo{path: p, logFn: defaultLogFn, errFn: defaultLogFn}
 	err := r.Open()
-	db := r.conn
 	be.NilErr(t, err)
+
+	db := r.conn
 
 	rootVal, _ := vocab.MarshalJSON(root)
 	mocks = append(mocks, string(rootVal))
@@ -36,6 +40,7 @@ func saveMocks(t *testing.T, base string, root vocab.Item, mocks ...string) {
 		be.NilErr(t, err)
 		be.Equal(t, 1, rows)
 	}
+	return p
 }
 
 func checkErrorsEqual(t *testing.T, wanted, got error) {
@@ -67,14 +72,14 @@ func Test_repo_Load(t *testing.T) {
 			name: "empty",
 			root: rootActor,
 			arg:  "",
-			want: nil,
-			err:  errors.NotFoundf("unable to find storage for path "),
+			want: vocab.ItemCollection(nil),
+			err:  errors.NotFoundf("Not found"),
 		},
 		{
-			name: "load object with just an ID",
-			root: vocab.Object{ID: "https://example.com"},
+			name: "load actor with just an ID",
+			root: vocab.Actor{ID: "https://example.com"},
 			arg:  "https://example.com",
-			want: &vocab.Object{ID: "https://example.com"},
+			want: vocab.ItemCollection{&vocab.Actor{ID: "https://example.com"}},
 		},
 		{
 			name: "load actor",
@@ -118,8 +123,8 @@ func Test_repo_Load(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := t.TempDir()
-			saveMocks(t, path, tt.root, tt.mocks...)
+			base := t.TempDir()
+			path := saveMocks(t, base, tt.root)
 
 			r := repo{
 				path:  path,
@@ -186,7 +191,9 @@ func Test_repo_Save(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := t.TempDir()
+			base := t.TempDir()
+			path := saveMocks(t, base, tt.root)
+
 			saveMocks(t, path, tt.root)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
@@ -278,8 +285,8 @@ func Test_repo_Create(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := t.TempDir()
-			saveMocks(t, path, tt.root)
+			base := t.TempDir()
+			path := saveMocks(t, base, tt.root)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
 			got, err := r.Create(tt.arg)
@@ -330,8 +337,8 @@ func Test_repo_AddTo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := t.TempDir()
-			saveMocks(t, path, tt.root)
+			base := t.TempDir()
+			path := saveMocks(t, base, tt.root)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
 
@@ -411,8 +418,8 @@ func Test_repo_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := t.TempDir()
-			saveMocks(t, path, tt.root)
+			base := t.TempDir()
+			path := saveMocks(t, base, tt.root)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
 			err := r.Delete(tt.arg)
