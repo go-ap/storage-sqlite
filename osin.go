@@ -480,6 +480,9 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string) (*osin.AccessDat
 		err = rows.Scan(&client, &authorize, &prev, &a.AccessToken, &a.RefreshToken, &a.ExpiresIn, &a.RedirectUri,
 			&a.Scope, &createdAt, &a.UserData)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, errors.NewNotFound(err, "Unable to load authorize data")
+			}
 			return nil, errors.Annotatef(err, "unable to load authorize data")
 		}
 
@@ -555,14 +558,16 @@ func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
 	defer r.Close()
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
-	var access string
-	if err := r.conn.QueryRowContext(ctx, loadRefresh, code).Scan(access); errors.Is(err, sql.ErrNoRows) {
-		return nil, errors.NewNotFound(err, "Unable to load refresh token")
-	} else if err != nil {
+	var access sql.NullString
+	err := r.conn.QueryRowContext(ctx, loadRefresh, code).Scan(&access)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.NewNotFound(err, "Unable to load refresh token")
+		}
 		return nil, errors.Annotatef(err, "Unable to load refresh token")
 	}
 
-	return loadAccess(r.conn, ctx, access)
+	return loadAccess(r.conn, ctx, access.String)
 }
 
 const removeRefresh = "DELETE FROM refresh WHERE token=?"

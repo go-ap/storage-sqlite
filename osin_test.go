@@ -203,7 +203,7 @@ func Test_repo_LoadAccess(t *testing.T) {
 				func(db *sql.DB) error {
 					db.Exec(createClient, "client", "secret", "redir", "extra123")
 					db.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
-					_, err := db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "scope", "redir", hellTimeStr, "extra")
+					_, err := db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "redir", "scope", hellTimeStr, "extra")
 					return err
 				},
 			},
@@ -321,7 +321,7 @@ func Test_repo_LoadRefresh(t *testing.T) {
 				func(db *sql.DB) error {
 					db.Exec(createClient, "client", "secret", "redir", "extra123")
 					db.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
-					db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "scope", "redir", hellTimeStr, "extra")
+					db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "redir", "scope", hellTimeStr, "extra")
 					_, err := db.Exec(saveRefresh, "ref1", "one")
 					return err
 				},
@@ -363,9 +363,7 @@ func Test_repo_LoadRefresh(t *testing.T) {
 			s := initializeOsinDb(t, tt.init...)
 			got, err := s.LoadRefresh(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
-			if tt.want != nil {
-				be.DeepEqual(t, tt.want, got)
-			}
+			be.DeepEqual(t, tt.want, got)
 		})
 	}
 }
