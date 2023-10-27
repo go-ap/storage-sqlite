@@ -310,7 +310,7 @@ func Test_repo_AddTo(t *testing.T) {
 				col: "https://example.com/1",
 				it:  nil,
 			},
-			err: nilItemErr,
+			err: nil,
 		},
 		{
 			name: "test",
@@ -340,7 +340,7 @@ func Test_repo_AddTo(t *testing.T) {
 			conn := r.conn
 			defer conn.Close()
 
-			sel := "SELECT * from collections where id=?;"
+			sel := "SELECT * from collections where iri=?;"
 			res, err := conn.Query(sel, tt.args.col)
 			be.NilErr(t, err)
 
