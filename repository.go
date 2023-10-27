@@ -425,7 +425,7 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 	sel := fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY published %s", table, strings.Join(clauses, " AND "), getLimit(f))
 	rows, err := conn.Query(sel, values...)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return vocab.ItemCollection{}, nil
 		}
 		return nil, errors.Annotatef(err, "unable to run select")
@@ -694,7 +694,7 @@ func loadFromDb(r *repo, f *filters.Filters) (vocab.ItemCollection, error) {
 	sel := fmt.Sprintf("SELECT iri, object FROM %s WHERE %s %s", "collections", iriClause, getLimit(f))
 	rows, err := conn.Query(sel, iriValue)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.NotFoundf("Unable to load %s", f.Collection)
 		}
 		return nil, errors.Annotatef(err, "unable to run select")

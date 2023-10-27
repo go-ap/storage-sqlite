@@ -136,7 +136,7 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	rows, err := r.conn.QueryContext(ctx, getClients)
-	if err == sql.ErrNoRows || rows.Err() == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) || errors.Is(rows.Err(), sql.ErrNoRows) {
 		return nil, errors.NewNotFound(err, "No clients found")
 	} else if err != nil {
 		r.errFn("Error listing clients: %+s", err)
@@ -161,7 +161,7 @@ func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error
 
 	rows, err := conn.QueryContext(ctx, getClientSQL, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.NewNotFound(err, "Client could not be found")
 		}
 		//s.errFn(log.Ctx{"code": id, "table": "client", "operation": "select"}, "%s", err)
@@ -337,7 +337,7 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 	var a *osin.AuthorizeData
 
 	rows, err := conn.QueryContext(ctx, loadAuthorizeSQL, code)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errors.NotFoundf("Unable to load authorize token")
 	} else if err != nil {
 		//s.errFn(log.Ctx{"code": code, "table": "authorize", "operation": "select"}, err.Error())
@@ -467,7 +467,7 @@ const loadAccessSQL = `SELECT client, authorize, previous, token, refresh_token,
 func loadAccess(conn *sql.DB, ctx context.Context, code string) (*osin.AccessData, error) {
 	var a *osin.AccessData
 	rows, err := conn.QueryContext(ctx, loadAccessSQL, code)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errors.NewNotFound(err, "Unable to load access token")
 	} else if err != nil {
 		return nil, errors.Annotatef(err, "Unable to load access token")
@@ -554,7 +554,7 @@ func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	var access string
-	if err := r.conn.QueryRowContext(ctx, loadRefresh, code).Scan(access); err == sql.ErrNoRows {
+	if err := r.conn.QueryRowContext(ctx, loadRefresh, code).Scan(access); errors.Is(err, sql.ErrNoRows) {
 		return nil, errors.NewNotFound(err, "Unable to load refresh token")
 	} else if err != nil {
 		return nil, errors.Annotatef(err, "Unable to load refresh token")
