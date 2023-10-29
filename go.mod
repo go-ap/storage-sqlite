@@ -8,7 +8,7 @@ require (
 	github.com/go-ap/cache v0.0.0-20231029155239-8c539c46e4b6
 	github.com/go-ap/errors v0.0.0-20231003111023-183eef4b31b7
 	github.com/go-ap/filters v0.0.0-20231029155518-76b548dfcd36
-	github.com/go-ap/processing v0.0.0-20231029155704-cd7d525b14e4
+	github.com/go-ap/processing v0.0.0-20231029162418-88d08e4c5468
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/openshift/osin v1.0.1
 	golang.org/x/crypto v0.14.0
