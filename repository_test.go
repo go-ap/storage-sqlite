@@ -74,7 +74,6 @@ func Test_repo_Load(t *testing.T) {
 			name: "empty",
 			root: rootActor,
 			arg:  "",
-			want: vocab.ItemCollection(nil),
 			err:  errors.NotFoundf("Not found"),
 		},
 		{
@@ -136,7 +135,7 @@ func Test_repo_Load(t *testing.T) {
 			got, err := r.Load(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 
-			be.DeepEqual(t, tt.want, got)
+			be.True(t, vocab.ItemsEqual(tt.want, got))
 		})
 	}
 }
