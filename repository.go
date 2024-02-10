@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -151,7 +152,7 @@ func getCollectionTableFromFilter(f *filters.Filters) vocab.CollectionPath {
 }
 
 // Load
-func (r *repo) Load(i vocab.IRI, _ ...filters.Check) (vocab.Item, error) {
+func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 	if err := r.Open(); err != nil {
 		return nil, err
 	}
@@ -565,15 +566,44 @@ func loadFromActivities(r *repo, f *filters.Filters) (vocab.CollectionInterface,
 func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) {
 	result := make(vocab.ItemCollection, 0)
 	if obj, err := loadFromObjects(r, f); err == nil {
-		result.Append(obj.Collection()...)
+		_ = result.Append(obj.Collection()...)
 	}
 	if actors, err := loadFromActors(r, f); err == nil {
-		result.Append(actors.Collection()...)
+		_ = result.Append(actors.Collection()...)
 	}
 	if activities, err := loadFromActivities(r, f); err == nil {
-		result.Append(activities.Collection()...)
+		_ = result.Append(activities.Collection()...)
 	}
 	return &result, nil
+}
+
+var storageCollectionPaths = append(filters.FedBOXCollections, append(vocab.OfActor, vocab.OfObject...)...)
+
+func iriPath(iri vocab.IRI) string {
+	u, err := iri.URL()
+	if err != nil {
+		return ""
+	}
+
+	pieces := make([]string, 0)
+	if h := u.Host; h != "" {
+		pieces = append(pieces, h)
+	}
+	if p := u.Path; p != "" && p != "/" {
+		pieces = append(pieces, p)
+	}
+	//if u.ForceQuery || u.RawQuery != "" {
+	//	pieces = append(pieces, url.PathEscape(u.RawQuery))
+	//}
+	if u.Fragment != "" {
+		pieces = append(pieces, url.PathEscape(u.Fragment))
+	}
+	return filepath.Join(pieces...)
+}
+
+func isStorageCollectionKey(iri vocab.IRI) bool {
+	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
+	return storageCollectionPaths.Contains(lst)
 }
 
 func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (vocab.CollectionInterface, error) {
@@ -843,13 +873,30 @@ func loadFromDb(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) 
 		return nil, errors.Annotatef(err, "unable to count all rows")
 	}
 	if total > 0 {
-		return loadFromOneTable(r, table, f)
+		items, err := loadFromOneTable(r, table, f)
+		if err != nil {
+			return nil, err
+		}
+		par, _ := loadFromCollectionTable(r, f)
+		if vocab.IsNil(par) {
+			return items, nil
+		}
+		err = vocab.OnCollectionIntf(par, func(col vocab.CollectionInterface) error {
+			return col.Append(items.Collection()...)
+		})
+		return par, err
 	}
+	return loadFromCollectionTable(r, f)
+}
+
+func loadFromCollectionTable(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) {
 	var (
 		iriClause string
 		iriValue  interface{}
 		hasIRI    = false
 	)
+	table := getCollectionTableFromFilter(f)
+	clauses, values := getWhereClauses(f)
 	valIdx := -1
 	for _, c := range clauses {
 		valIdx += strings.Count(c, "?")
@@ -862,14 +909,18 @@ func loadFromDb(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) 
 	if !hasIRI {
 		return nil, errors.NotFoundf("Not found")
 	}
+	conn := r.conn
+	var total uint
+
 	colCntQ := fmt.Sprintf("SELECT COUNT(iri) FROM %s WHERE %s", "collections", iriClause)
-	err = conn.QueryRow(colCntQ, iriValue).Scan(&total)
+	err := conn.QueryRow(colCntQ, iriValue).Scan(&total)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, errors.Annotatef(err, "unable to count all rows")
 	}
 	if total == 0 && vocab.ActivityPubCollections.Contains(f.Collection) && !MandatoryCollections.Contains(f.Collection) {
 		return nil, errors.NotFoundf("Unable to find collection %s", f.Collection)
 	}
+
 	sel := fmt.Sprintf("SELECT iri, raw, items FROM %s WHERE %s %s", "collections", iriClause, getLimit(f))
 	rows, err := conn.Query(sel, iriValue)
 	if err != nil {
@@ -966,7 +1017,7 @@ func loadFromDb(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) 
 		}
 		return nil
 	})
-	return res, err
+	return res, nil
 }
 
 func delete(l repo, it vocab.Item) error {
