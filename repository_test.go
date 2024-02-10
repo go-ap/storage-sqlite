@@ -399,7 +399,7 @@ func Test_repo_Delete(t *testing.T) {
 			name: "empty",
 			root: rootActor,
 			arg:  nil,
-			err:  nilItemErr,
+			err:  nil,
 		},
 		{
 			name: "delete invalid item - this should probably 404",
@@ -442,7 +442,7 @@ func Test_repo_Delete(t *testing.T) {
 			defer conn.Close()
 
 			{
-				sel := "SELECT * from objects where id=?;"
+				sel := "SELECT * from objects where iri=?;"
 				res, err := conn.Query(sel, tt.arg.GetLink())
 				be.NilErr(t, err)
 				be.False(t, res.Next())
@@ -462,7 +462,7 @@ func Test_repo_Delete(t *testing.T) {
 				mocks.Append(it)
 			}
 
-			sel := "SELECT id, raw from objects where id != ?;"
+			sel := "SELECT iri, raw from objects where iri != ?;"
 			res, err := conn.Query(sel, tt.root.GetLink())
 			be.NilErr(t, err)
 			for res.Next() {
