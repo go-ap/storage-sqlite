@@ -340,7 +340,7 @@ func Test_repo_AddTo(t *testing.T) {
 			conn := r.conn
 			defer conn.Close()
 
-			sel := "SELECT * from collections where iri=?;"
+			sel := "SELECT published, iri, object from collections where iri=?;"
 			res, err := conn.Query(sel, tt.args.col)
 			be.NilErr(t, err)
 
@@ -358,7 +358,28 @@ func Test_repo_AddTo(t *testing.T) {
 
 				be.Equal(t, tt.args.col, vocab.IRI(iri))
 
-				it, err := vocab.UnmarshalJSON(ob)
+				obIRI := vocab.IRI(ob)
+				be.NilErr(t, err)
+				be.DeepEqual(t, tt.args.it.GetLink(), obIRI)
+			}
+
+			if vocab.IsNil(tt.args.it) {
+				return
+			}
+			selOb := "SELECT iri, raw from objects where iri=?;"
+			resOb, err := conn.Query(selOb, tt.args.it.GetLink())
+			be.NilErr(t, err)
+
+			for resOb.Next() {
+				var iri string
+				var raw []byte
+
+				err := res.Scan(&iri, &raw)
+				be.NilErr(t, err)
+
+				be.Equal(t, tt.args.col, vocab.IRI(iri))
+
+				it, err := vocab.UnmarshalJSON(raw)
 				be.NilErr(t, err)
 				be.DeepEqual(t, tt.args.it, it)
 			}
