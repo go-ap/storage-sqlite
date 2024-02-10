@@ -50,7 +50,7 @@ func TestBootstrap(t *testing.T) {
 			}
 
 			err := Bootstrap(conf)
-			checkErrorsEqual(t, err, tt.err)
+			checkErrorsEqual(t, tt.err, err)
 		})
 	}
 }

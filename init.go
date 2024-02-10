@@ -69,8 +69,9 @@ CREATE TABLE objects (
 	createCollectionsQuery = `
 CREATE TABLE collections (
   "published" TEXT default CURRENT_TIMESTAMP,
-  "iri" TEXT,
-  "object" TEXT
+  "raw" BLOB,
+  "items" BLOB,
+  "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint collections_key unique
 ) STRICT;
 
 CREATE TRIGGER collections_updated_published AFTER UPDATE ON collections BEGIN

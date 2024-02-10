@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/cache"
@@ -168,7 +169,10 @@ func (r *repo) Load(i vocab.IRI, _ ...filters.Check) (vocab.Item, error) {
 	return ret, err
 }
 
-var nilItemErr = errors.Errorf("nil item")
+var (
+	nilItemErr    = errors.Errorf("nil item")
+	nilItemIRIErr = errors.Errorf("nil IRI for item")
+)
 
 // Save
 func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
@@ -179,8 +183,50 @@ func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
 	return save(*r, it)
 }
 
+var emptyCol = []byte{'[', ']'}
+
 // Create
 func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
+	if vocab.IsNil(col) {
+		return nil, nilItemErr
+	}
+	if col.GetLink() == "" {
+		return col, nilItemIRIErr
+	}
+	if err := r.Open(); err != nil {
+		return col, err
+	}
+	defer r.Close()
+	return r.createCollection(col)
+}
+
+func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
+	published := time.Now().UTC()
+	_ = vocab.OnCollection(col, func(c *vocab.Collection) error {
+		if !c.Published.IsZero() {
+			published = c.Published
+		} else {
+			c.Published = published
+		}
+		return nil
+	})
+	_ = vocab.OnOrderedCollection(col, func(c *vocab.OrderedCollection) error {
+		if !c.Published.IsZero() {
+			published = c.Published
+		} else {
+			c.Published = published
+		}
+		return nil
+	})
+
+	raw, err := vocab.MarshalJSON(col)
+	ins := "INSERT INTO collections (published, raw, items) VALUES (?, ?, ?);"
+	_, err = r.conn.Exec(ins, published, raw, emptyCol)
+	if err != nil {
+		r.errFn("query error: %s\n%s\n%#v", err, ins)
+		return col, errors.Annotatef(err, "unable to save Collection")
+	}
+
 	return col, nil
 }
 
@@ -207,9 +253,57 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	if r.conn == nil {
 		return errors.Newf("nil sql connection")
 	}
-	query := "INSERT INTO collections (iri, object) VALUES (?, ?);"
+	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
+	rows, err := r.conn.Query(colSel, col.GetLink())
+	if err != nil {
+		r.errFn("query error: %s\n%s\n%#v", err, colSel)
+		return errors.NotFoundf("Unable to load %s", col.GetLink())
+	}
+	var c vocab.Item
+	for rows.Next() {
+		var iri string
+		var raw []byte
+		var itemsRaw []byte
 
-	if _, err := r.conn.Exec(query, col, it.GetLink()); err != nil {
+		err = rows.Scan(&iri, &raw, &itemsRaw)
+		if err != nil {
+			return errors.Annotatef(err, "scan values error")
+		}
+		c, err = vocab.UnmarshalJSON(raw)
+		if err != nil {
+			return errors.Annotatef(err, "unable to unmarshal Collection")
+		}
+	}
+
+	if c == nil {
+		return errors.NotFoundf("not found Collection %s", col.GetLink())
+	}
+	allItems := make(vocab.IRIs, 0)
+	err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
+		col.Updated = time.Now().UTC()
+		// NOTE(marius): this should ideally be empty
+		for _, cit := range col.OrderedItems {
+			allItems = append(allItems, cit.GetLink())
+		}
+		return nil
+	})
+	if err != nil {
+		return errors.Annotatef(err, "unable to update Collection")
+	}
+	allItems = append(allItems, it.GetLink())
+
+	raw, err := vocab.MarshalJSON(it)
+	if err != nil {
+		return errors.Annotatef(err, "unable to marshal Collection")
+	}
+	items, err := vocab.MarshalJSON(allItems)
+	if err != nil {
+		return errors.Annotatef(err, "unable to marshal Collection items")
+	}
+
+	query := "UPDATE collections SET raw = ?, items = ? WHERE iri = ?;"
+	_, err = r.conn.Exec(query, raw, items, c.GetLink())
+	if err != nil {
 		r.errFn("query error: %s\n%s\n%#v", err, query)
 		return errors.Annotatef(err, "query error")
 	}

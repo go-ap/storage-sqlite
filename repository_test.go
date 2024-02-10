@@ -206,21 +206,21 @@ func Test_repo_Create(t *testing.T) {
 			root: rootActor,
 			arg:  nil,
 			want: nil,
-			err:  nil,
+			err:  nilItemErr,
 		},
 		{
 			name: "empty",
 			root: rootActor,
 			arg:  &vocab.ItemCollection{},
 			want: &vocab.ItemCollection{},
-			err:  nil,
+			err:  nilItemIRIErr,
 		},
 		{
 			name: "an item in an item collection",
 			root: rootActor,
 			arg:  &vocab.ItemCollection{vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType}},
 			want: &vocab.ItemCollection{vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType}},
-			err:  nil,
+			err:  nilItemIRIErr,
 		},
 		{
 			name: "an ordered collection",
@@ -278,9 +278,15 @@ func Test_repo_Create(t *testing.T) {
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
 			got, err := r.Create(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
-			be.DeepEqual(t, tt.want, got)
+			be.True(t, vocab.ItemsEqual(tt.want, got))
 		})
 	}
+}
+
+func orderedCollection(iri vocab.IRI) vocab.CollectionInterface {
+	col := vocab.OrderedCollectionNew(iri)
+	col.Published = time.Now().UTC().Truncate(time.Second)
+	return col
 }
 
 func Test_repo_AddTo(t *testing.T) {
@@ -294,15 +300,6 @@ func Test_repo_AddTo(t *testing.T) {
 		args args
 		err  error
 	}{
-		{
-			name: "empty collection iri",
-			root: rootActor,
-			args: args{
-				col: "",
-				it:  nil,
-			},
-			err: nil,
-		},
 		{
 			name: "empty",
 			root: rootActor,
@@ -327,9 +324,14 @@ func Test_repo_AddTo(t *testing.T) {
 			base := t.TempDir()
 			path := saveMocks(t, base, tt.root)
 
-			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
+			mockCol := orderedCollection(tt.args.col)
 
-			err := r.AddTo(tt.args.col, tt.args.it)
+			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
+			col, err := r.Create(mockCol)
+			be.NilErr(t, err)
+			be.Equal(t, tt.args.col, col.GetLink())
+
+			err = r.AddTo(tt.args.col, tt.args.it)
 			checkErrorsEqual(t, tt.err, err)
 			if tt.err != nil {
 				return
@@ -340,48 +342,35 @@ func Test_repo_AddTo(t *testing.T) {
 			conn := r.conn
 			defer conn.Close()
 
-			sel := "SELECT published, iri, object from collections where iri=?;"
+			sel := "SELECT published, iri, raw, items from collections where iri=?;"
 			res, err := conn.Query(sel, tt.args.col)
 			be.NilErr(t, err)
 
 			for res.Next() {
 				var pub string
 				var iri string
-				var ob []byte
-
-				err := res.Scan(&pub, &iri, &ob)
-				be.NilErr(t, err)
-
-				p, err := time.Parse("2006-01-02 15:04:05", pub)
-				be.NilErr(t, err)
-				be.True(t, time.Now().Sub(p) > time.Millisecond)
-
-				be.Equal(t, tt.args.col, vocab.IRI(iri))
-
-				obIRI := vocab.IRI(ob)
-				be.NilErr(t, err)
-				be.DeepEqual(t, tt.args.it.GetLink(), obIRI)
-			}
-
-			if vocab.IsNil(tt.args.it) {
-				return
-			}
-			selOb := "SELECT iri, raw from objects where iri=?;"
-			resOb, err := conn.Query(selOb, tt.args.it.GetLink())
-			be.NilErr(t, err)
-
-			for resOb.Next() {
-				var iri string
 				var raw []byte
+				var itemsRaw []byte
 
-				err := res.Scan(&iri, &raw)
+				err := res.Scan(&pub, &iri, &raw, &itemsRaw)
 				be.NilErr(t, err)
 
 				be.Equal(t, tt.args.col, vocab.IRI(iri))
 
 				it, err := vocab.UnmarshalJSON(raw)
 				be.NilErr(t, err)
-				be.DeepEqual(t, tt.args.it, it)
+				be.True(t, vocab.ItemsEqual(mockCol, it))
+
+				it, err = vocab.UnmarshalJSON(itemsRaw)
+				be.NilErr(t, err)
+				items, err := vocab.ToItemCollection(it)
+				be.NilErr(t, err)
+
+				expectedCount := 0
+				if tt.args.it != nil {
+					expectedCount = 1
+				}
+				be.Equal(t, expectedCount, len(*items))
 			}
 		})
 	}
