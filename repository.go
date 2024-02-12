@@ -310,25 +310,33 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	if r.conn == nil {
 		return errors.Newf("nil sql connection")
 	}
+	var c vocab.Item
+
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
 	rows, err := r.conn.Query(colSel, col.GetLink())
 	if err != nil {
-		r.errFn("query error: %s\n%s\n%#v", err, colSel)
-		return errors.NotFoundf("Unable to load %s", col.GetLink())
-	}
-	var c vocab.Item
-	for rows.Next() {
-		var iri string
-		var raw []byte
-		var itemsRaw []byte
+		r.logFn("unable to load collection object for %s: %s", col.GetLink(), err.Error())
+	} else {
+		for rows.Next() {
+			var iri string
+			var raw []byte
+			var itemsRaw []byte
 
-		err = rows.Scan(&iri, &raw, &itemsRaw)
-		if err != nil {
-			return errors.Annotatef(err, "scan values error")
+			err = rows.Scan(&iri, &raw, &itemsRaw)
+			if err != nil {
+				return errors.Annotatef(err, "scan values error")
+			}
+			c, err = vocab.UnmarshalJSON(raw)
+			if err != nil {
+				return errors.Annotatef(err, "unable to unmarshal Collection")
+			}
 		}
-		c, err = vocab.UnmarshalJSON(raw)
-		if err != nil {
-			return errors.Annotatef(err, "unable to unmarshal Collection")
+	}
+
+	if c == nil && isHiddenCollectionIRI(col.GetLink()) {
+		// NOTE(marius): this creates blocked/ignored collections if they don't exist as dumb folders
+		if c, err = save(r, newOrderedCollection(col.GetLink())); err != nil {
+			r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col.GetLink()})
 		}
 	}
 
@@ -951,6 +959,11 @@ func postProcessOrderedItems(items vocab.ItemCollection) vocab.WithOrderedCollec
 		col.TotalItems = uint(len(items))
 		return nil
 	}
+}
+
+func isHiddenCollectionIRI(i vocab.IRI) bool {
+	lst := vocab.CollectionPath(filepath.Base(i.String()))
+	return filters.HiddenCollections.Contains(lst)
 }
 
 func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
