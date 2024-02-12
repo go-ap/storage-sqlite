@@ -885,6 +885,18 @@ func loadFromDb(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) 
 			ob.ID = f.GetLink()
 			return nil
 		})
+		switch par.GetType() {
+		case vocab.OrderedCollectionType, vocab.OrderedCollectionPageType:
+			_ = vocab.OnCollection(par, func(c *vocab.Collection) error {
+				c.TotalItems = items.Count()
+				return nil
+			})
+		case vocab.CollectionPageType, vocab.CollectionType:
+			_ = vocab.OnOrderedCollection(par, func(c *vocab.OrderedCollection) error {
+				c.TotalItems = items.Count()
+				return nil
+			})
+		}
 		err = vocab.OnCollectionIntf(par, func(col vocab.CollectionInterface) error {
 			return col.Append(items.Collection()...)
 		})
