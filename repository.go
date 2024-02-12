@@ -1126,7 +1126,11 @@ func createCollectionInTable(r *repo, it vocab.Item) (vocab.Item, error) {
 	ff, _ := filters.FiltersFromIRI(it.GetLink())
 	colObject, err := loadFromCollectionTable(r, colIRI(it.GetLink()), ff)
 	if colObject == nil {
-		it, err = r.createCollection(newOrderedCollection(it.GetLink()))
+		c, ok := it.(vocab.CollectionInterface)
+		if !ok {
+			c = newOrderedCollection(it.GetLink())
+		}
+		it, err = r.createCollection(c)
 	}
 	if err != nil {
 		return nil, errors.Annotatef(err, "saving collection object is not done")
