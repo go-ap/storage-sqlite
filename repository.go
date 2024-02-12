@@ -881,6 +881,10 @@ func loadFromDb(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) 
 		if vocab.IsNil(par) {
 			return items, nil
 		}
+		_ = vocab.OnObject(par, func(ob *vocab.Object) error {
+			ob.ID = f.GetLink()
+			return nil
+		})
 		err = vocab.OnCollectionIntf(par, func(col vocab.CollectionInterface) error {
 			return col.Append(items.Collection()...)
 		})
