@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -348,19 +349,33 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	}
 	allItems = append(allItems, it.GetLink())
 
-	raw, err := vocab.MarshalJSON(it)
-	if err != nil {
-		return errors.Annotatef(err, "unable to marshal Collection")
-	}
-	items, err := vocab.MarshalJSON(allItems)
+	rawItems, err := vocab.MarshalJSON(allItems)
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection items")
 	}
 
-	query := "UPDATE collections SET raw = ?, items = ? WHERE iri = ?;"
-	_, err = r.conn.Exec(query, raw, items, c.GetLink())
+	if orderedCollectionTypes.Contains(col.GetType()) {
+		err = vocab.OnOrderedCollection(col, func(c *vocab.OrderedCollection) error {
+			c.TotalItems += 1
+			c.OrderedItems = nil
+			return nil
+		})
+	} else if collectionTypes.Contains(col.GetType()) {
+		err = vocab.OnCollection(col, func(c *vocab.Collection) error {
+			c.TotalItems += 1
+			c.Items = nil
+			return nil
+		})
+	}
+
+	raw, err := vocab.MarshalJSON(col)
 	if err != nil {
-		r.errFn("query error: %s\n%s\n%#v", err, query)
+		return errors.Annotatef(err, "unable to marshal Collection")
+	}
+	query := "UPDATE collections SET raw = ?, items = ? WHERE iri = ?;"
+	_, err = r.conn.Exec(query, raw, rawItems, c.GetLink())
+	if err != nil {
+		r.errFn("query error: %s\n%s %#v", err, query, vocab.IRIs{c.GetLink()})
 		return errors.Annotatef(err, "query error")
 	}
 
@@ -866,6 +881,9 @@ func childFilter(r *repo, ret *vocab.ItemCollection, filterFn iriFilterFn, keepF
 	return toRemove
 }
 
+var orderedCollectionTypes = vocab.ActivityVocabularyTypes{vocab.OrderedCollectionPageType, vocab.OrderedCollectionType}
+var collectionTypes = vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vocab.CollectionType}
+
 func loadFromDb(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
 	conn := r.conn
 	table := getCollectionTableFromFilter(f)
@@ -908,21 +926,31 @@ func loadFromDb(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInt
 		ob.ID = iri
 		return nil
 	})
-	switch par.GetType() {
-	case vocab.OrderedCollectionType, vocab.OrderedCollectionPageType:
-		_ = vocab.OnOrderedCollection(par, func(c *vocab.OrderedCollection) error {
-			c.TotalItems = items.Count()
-			c.OrderedItems.Append(items.Collection()...)
-			return nil
-		})
-	case vocab.CollectionPageType, vocab.CollectionType:
-		_ = vocab.OnCollection(par, func(c *vocab.Collection) error {
-			c.TotalItems = items.Count()
-			c.Items.Append(items.Collection()...)
-			return nil
-		})
+	if orderedCollectionTypes.Contains(par.GetType()) {
+		_ = vocab.OnOrderedCollection(par, postProcessOrderedItems(items.Collection()))
+	} else if collectionTypes.Contains(par.GetType()) {
+		_ = vocab.OnCollection(par, postProcessItems(items.Collection()))
 	}
 	return par, err
+}
+
+func postProcessItems(items vocab.ItemCollection) vocab.WithCollectionFn {
+	return func(col *vocab.Collection) error {
+		col.Items = items
+		col.TotalItems = uint(len(items))
+		return nil
+	}
+}
+
+func postProcessOrderedItems(items vocab.ItemCollection) vocab.WithOrderedCollectionFn {
+	return func(col *vocab.OrderedCollection) error {
+		col.OrderedItems = items
+		sort.Slice(col.OrderedItems, func(i, j int) bool {
+			return vocab.ItemOrderTimestamp(col.OrderedItems[i], col.OrderedItems[j])
+		})
+		col.TotalItems = uint(len(items))
+		return nil
+	}
 }
 
 func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
