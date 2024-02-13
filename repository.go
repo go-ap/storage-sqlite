@@ -588,17 +588,71 @@ func loadFromActivities(r *repo, f *filters.Filters) (vocab.CollectionInterface,
 }
 
 func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) {
-	result := make(vocab.ItemCollection, 0)
-	if obj, err := loadFromObjects(r, f); err == nil {
-		_ = result.Append(obj.Collection()...)
+	conn := r.conn
+	// NOTE(marius): this doesn't seem to be working, our filter is never an IRI or Item
+	if isSingleItem(f) && r.cache != nil {
+		if cachedIt := r.cache.Load(f.GetLink()); cachedIt != nil {
+			return &vocab.ItemCollection{cachedIt}, nil
+		}
 	}
-	if actors, err := loadFromActors(r, f); err == nil {
-		_ = result.Append(actors.Collection()...)
+	clauses, values := getWhereClauses(f)
+	var total uint = 0
+
+	selects := make([]string, 0, 3)
+	counts := make([]string, 0, 3)
+	for _, table := range []string{"actors", "objects", "activities"} {
+		counts = append(counts, fmt.Sprintf("SELECT COUNT(iri) FROM %s WHERE %s", table, strings.Join(clauses, " AND ")))
+		selects = append(selects, fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY published %s", table, strings.Join(clauses, " AND "), getLimit(f)))
 	}
-	if activities, err := loadFromActivities(r, f); err == nil {
-		_ = result.Append(activities.Collection()...)
+	selCnt := strings.Join(counts, " UNION ")
+	if err := conn.QueryRow(selCnt, values...).Scan(&total); err != nil {
+		return nil, errors.Annotatef(err, "unable to count all rows")
 	}
-	return &result, nil
+	ret := make(vocab.ItemCollection, 0)
+	if total == 0 {
+		return &ret, nil
+	}
+
+	sel := strings.Join(counts, " UNION ")
+	rows, err := conn.Query(sel, values...)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, errors.Annotatef(err, "unable to run select")
+	}
+
+	// Iterate through the result set
+	for rows.Next() {
+		var iri string
+		var raw []byte
+		err = rows.Scan(&iri, &raw)
+		if err != nil {
+			return &ret, errors.Annotatef(err, "scan values error")
+		}
+
+		it, err := decodeItemFn(raw)
+		if err != nil {
+			return &ret, errors.Annotatef(err, "unable to unmarshal raw item")
+		}
+		if vocab.IsObject(it) && r.cache != nil {
+			r.cache.Store(it.GetLink(), it)
+		}
+		ret = append(ret, it)
+	}
+	/*
+		if table == "actors" {
+			ret = loadActorFirstLevelIRIProperties(r, ret, f)
+		}
+		if table == "objects" {
+			ret = loadObjectFirstLevelIRIProperties(r, ret, f)
+		}
+		if table == "activities" {
+			ret = runActivityFilters(r, ret, f)
+		}
+		ret = runObjectFilters(r, ret, f)
+	*/
+	return &ret, err
 }
 
 var storageCollectionPaths = append(filters.FedBOXCollections, append(vocab.OfActor, vocab.OfObject...)...)
@@ -867,7 +921,10 @@ func childFilter(r *repo, ret *vocab.ItemCollection, filterFn iriFilterFn, keepF
 		return nil
 	}
 	toRemove := make(vocab.IRIs, 0)
-	children, _ := loadFromThreeTables(r, f)
+	children, err := loadFromThreeTables(r, f)
+	if err != nil {
+		return toRemove
+	}
 	for _, rr := range *ret {
 		if !vocab.ActivityTypes.Contains(rr.GetType()) {
 			toRemove = append(toRemove, rr.GetID())
@@ -968,8 +1025,6 @@ func isHiddenCollectionIRI(i vocab.IRI) bool {
 }
 
 func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
-	table := getCollectionTableFromFilter(f)
-
 	conn := r.conn
 
 	var cIri vocab.IRI
@@ -983,19 +1038,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 		}
 		return nil, errors.Annotatef(err, "unable to run select")
 	}
-	fOb := *f
-	fActors := *f
-	fActivities := *f
-
-	fOb.IRI = ""
-	fOb.Collection = "objects"
-	fOb.ItemKey = make(filters.CompStrs, 0)
-	fActors.IRI = ""
-	fActors.Collection = "actors"
-	fActors.ItemKey = make(filters.CompStrs, 0)
-	fActivities.IRI = ""
-	fActivities.Collection = "activities"
-	fActivities.ItemKey = make(filters.CompStrs, 0)
+	ff := *f
 
 	var res vocab.CollectionInterface
 	col, err := vocab.UnmarshalJSON(raw)
@@ -1013,53 +1056,22 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 	}
 	_ = vocab.OnIRIs(items, func(col *vocab.IRIs) error {
 		for _, iri := range *col {
-			col := getCollectionTypeFromIRI(iri)
 			iriF := filters.StringEquals(iri.String())
-			if col == "objects" {
-				fOb.ItemKey = append(fOb.ItemKey, iriF)
-			} else if col == "actors" {
-				fActors.ItemKey = append(fActors.ItemKey, iriF)
-			} else if col == "activities" {
-				fActivities.ItemKey = append(fActivities.ItemKey, iriF)
-			} else {
-				switch table {
-				case "activities":
-					fActivities.ItemKey = append(fActivities.ItemKey, iriF)
-				case "actors":
-					fActors.ItemKey = append(fActors.ItemKey, iriF)
-				case "objects":
-					fallthrough
-				default:
-					fOb.ItemKey = append(fOb.ItemKey, iriF)
-				}
-			}
+			ff.ItemKey = append(ff.ItemKey, iriF)
 		}
 		return nil
 	})
-	err = vocab.OnCollectionIntf(res, func(col vocab.CollectionInterface) error {
-		if len(fActivities.ItemKey) > 0 {
-			retAct, err := loadFromActivities(r, &fActivities)
+
+	if len(ff.ItemKey) > 0 {
+		err = vocab.OnCollectionIntf(res, func(col vocab.CollectionInterface) error {
+			retAct, err := loadFromThreeTables(r, &ff)
 			if err != nil {
 				return err
 			}
 			col.Append(retAct.Collection()...)
-		}
-		if len(fActors.ItemKey) > 0 {
-			retAct, err := loadFromActors(r, &fActors)
-			if err != nil {
-				return err
-			}
-			col.Append(retAct.Collection()...)
-		}
-		if len(fOb.ItemKey) > 0 {
-			retOb, err := loadFromObjects(r, &fOb)
-			if err != nil {
-				return err
-			}
-			col.Append(retOb.Collection()...)
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 	return res, nil
 }
 
