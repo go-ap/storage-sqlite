@@ -12,7 +12,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/openshift/osin v1.0.1
 	golang.org/x/crypto v0.19.0
-	modernc.org/sqlite v1.29.0-rc1
+	modernc.org/sqlite v1.29.0
 )
 
 require (
