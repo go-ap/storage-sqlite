@@ -577,16 +577,6 @@ func isSingleItem(f Filterable) bool {
 	return false
 }
 
-func loadFromObjects(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) {
-	return loadFromOneTable(r, "objects", f)
-}
-func loadFromActors(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) {
-	return loadFromOneTable(r, "actors", f)
-}
-func loadFromActivities(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) {
-	return loadFromOneTable(r, "activities", f)
-}
-
 func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface, error) {
 	conn := r.conn
 	// NOTE(marius): this doesn't seem to be working, our filter is never an IRI or Item
@@ -1219,7 +1209,7 @@ func createCollections(r *repo, it vocab.Item) error {
 // SaveKey saves a private key for an actor found by its IRI
 func (r *repo) SaveKey(iri vocab.IRI, key crypto.PrivateKey) (vocab.Item, error) {
 	f, _ := filters.FiltersFromIRI(iri)
-	result, err := loadFromActors(r, f)
+	result, err := loadFromThreeTables(r, f)
 	if err != nil {
 		return nil, err
 	}
