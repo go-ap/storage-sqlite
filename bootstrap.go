@@ -82,4 +82,23 @@ func Bootstrap(conf Config) error {
 	return nil
 }
 
-func (r *repo) Reset() {}
+func (r *repo) Reset() {
+	tables := []string{
+		"objects",
+		"actors",
+		"activities",
+		"collections",
+		"meta",
+		"clients",
+		"authorize",
+		"access",
+		"refresh",
+	}
+
+	r.Open()
+	defer r.close()
+
+	for _, table := range tables {
+		r.conn.Exec(fmt.Sprintf("DELETE FROM %s;", table))
+	}
+}
