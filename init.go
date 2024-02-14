@@ -2,9 +2,8 @@ package sqlite
 
 const (
 	createActorsQuery = `
-CREATE TABLE actors (
+CREATE TABLE IF NOT EXISTS actors (
   "raw" BLOB,
-  "meta" BLOB,
   "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint actors_key unique,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL NOT NULL,
   "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
@@ -22,9 +21,8 @@ CREATE TABLE actors (
 `
 
 	createActivitiesQuery = `
-CREATE TABLE activities (
+CREATE TABLE IF NOT EXISTS activities (
   "raw" BLOB,
-  "meta" BLOB,
   "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint activities_key unique,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL NOT NULL,
   "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
@@ -44,9 +42,8 @@ CREATE TABLE activities (
 `
 
 	createObjectsQuery = `
-CREATE TABLE objects (
+CREATE TABLE IF NOT EXISTS objects (
   "raw" BLOB,
-  "meta" BLOB,
   "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint objects_key unique,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
   "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
@@ -67,7 +64,7 @@ CREATE TABLE objects (
 `
 
 	createCollectionsQuery = `
-CREATE TABLE collections (
+CREATE TABLE IF NOT EXISTS collections (
   "published" TEXT default CURRENT_TIMESTAMP,
   "raw" BLOB,
   "items" BLOB,
@@ -78,6 +75,13 @@ CREATE TABLE collections (
 --   UPDATE collections SET published = strftime('%Y-%m-%dT%H:%M:%fZ') WHERE iri = old.iri;
 -- END;`
 
+	createMetaQuery = `
+CREATE TABLE IF NOT EXISTS meta (
+  "published" TEXT default CURRENT_TIMESTAMP,
+  "raw" BLOB,
+  "iri" TEXT NOT NULL constraint meta_key unique
+) STRICT;
+`
 	tuneQuery = `
 -- Use WAL mode (writers don't block readers):
 --PRAGMA journal_mode = DELETE;

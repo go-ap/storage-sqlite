@@ -29,8 +29,6 @@ import (
 var encodeItemFn = vocab.MarshalJSON
 var decodeItemFn = vocab.UnmarshalJSON
 
-var errNotImplemented = errors.NotImplementedf("not implemented")
-
 type loggerFn func(string, ...interface{})
 
 var defaultLogFn = func(string, ...interface{}) {}
@@ -92,7 +90,11 @@ func getCollectionTypeFromIRI(i vocab.IRI) vocab.CollectionPath {
 		b, _ := path.Split(i.String())
 		col = vocab.CollectionPath(path.Base(b))
 	}
-	return getCollectionTable(col)
+
+	if table := getCollectionTable(col); table != "" {
+		return table
+	}
+	return "actors"
 }
 
 func getCollectionTypeFromItem(it vocab.Item) vocab.CollectionPath {
@@ -222,7 +224,7 @@ func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.Collection
 	})
 
 	raw, err := vocab.MarshalJSON(col)
-	ins := "INSERT INTO collections (raw, items) VALUES (?, ?);"
+	ins := "INSERT OR REPLACE INTO collections (raw, items) VALUES (?, ?);"
 	_, err = r.conn.Exec(ins, raw, emptyCol)
 	if err != nil {
 		r.errFn("query error: %s\n%s\n%#v", err, ins)
@@ -549,18 +551,14 @@ func mkDirIfNotExists(p string) error {
 }
 
 func saveMetadataToTable(conn *sql.DB, iri vocab.IRI, m []byte) error {
-	table := getCollectionTypeFromIRI(iri)
-
-	query := fmt.Sprintf("UPDATE %s SET meta = ? WHERE iri = ?;", table)
-	_, err := conn.Exec(query, m, iri)
+	query := "INSERT OR REPLACE INTO meta (iri, raw) VALUES(?, ?);"
+	_, err := conn.Exec(query, iri, m)
 	return err
 }
 
 func loadMetadataFromTable(conn *sql.DB, iri vocab.IRI) ([]byte, error) {
-	table := getCollectionTypeFromIRI(iri)
-
 	var meta []byte
-	sel := fmt.Sprintf("SELECT meta FROM %s WHERE iri = ?;", table)
+	sel := "SELECT raw FROM meta WHERE iri = ?;"
 	err := conn.QueryRow(sel, iri).Scan(&meta)
 	return meta, err
 }

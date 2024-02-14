@@ -60,6 +60,9 @@ func Bootstrap(conf Config) error {
 	if err = exec(createCollectionsQuery); err != nil {
 		return err
 	}
+	if err = exec(createMetaQuery); err != nil {
+		return err
+	}
 	if err = exec(createClientTable); err != nil {
 		return err
 	}
