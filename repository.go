@@ -587,18 +587,17 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 			return &vocab.ItemCollection{cachedIt}, nil
 		}
 	}
-	clauses, values := getWhereClauses(f)
 
-	selects := make([]string, 0, 3)
-	params := make([]any, 0, 3*len(values))
+	selects := make([]string, 0)
+	params := make([]any, 0)
 	for _, table := range []string{"actors", "objects", "activities"} {
+		clauses, values := getWhereClauses(table, f)
 		selects = append(selects, fmt.Sprintf("SELECT iri, raw, published FROM %s WHERE %s", table, strings.Join(clauses, " AND ")))
 		params = append(params, values...)
 	}
 
 	ret := make(vocab.ItemCollection, 0)
 
-	//sel := strings.Join(selects, " UNION ")
 	sel := fmt.Sprintf(`select iri, raw from (%s) %s order by published;`, strings.Join(selects, " UNION "), getLimit(f))
 	rows, err := conn.Query(sel, params...)
 	if err != nil {
@@ -676,7 +675,6 @@ func isStorageCollectionIRI(iri vocab.IRI) bool {
 
 func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (vocab.CollectionInterface, error) {
 	conn := r.conn
-	// NOTE(marius): this doesn't seem to be working, our filter is never an IRI or Item
 	if isSingleItem(f) && r.cache != nil {
 		if cachedIt := r.cache.Load(f.GetLink()); cachedIt != nil {
 			return &vocab.ItemCollection{cachedIt}, nil
@@ -685,17 +683,9 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 	if table == "" {
 		table = getCollectionTableFromFilter(f)
 	}
-	clauses, values := getWhereClauses(f)
-	var total uint = 0
 
-	selCnt := fmt.Sprintf("SELECT COUNT(iri) FROM %s WHERE %s", table, strings.Join(clauses, " AND "))
-	if err := conn.QueryRow(selCnt, values...).Scan(&total); err != nil {
-		return nil, errors.Annotatef(err, "unable to count all rows")
-	}
+	clauses, values := getWhereClauses(string(table), f)
 	ret := make(vocab.ItemCollection, 0)
-	if total == 0 {
-		return &ret, nil
-	}
 
 	sel := fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY published %s;", table, strings.Join(clauses, " AND "), getLimit(f))
 	rows, err := conn.Query(sel, values...)
@@ -931,36 +921,20 @@ var orderedCollectionTypes = vocab.ActivityVocabularyTypes{vocab.OrderedCollecti
 var collectionTypes = vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vocab.CollectionType}
 
 func loadFromDb(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
-	conn := r.conn
 	table := getCollectionTableFromFilter(f)
-	clauses, values := getWhereClauses(f)
-	var total uint = 0
 
-	if !isStorageCollectionIRI(f.GetLink()) {
-		col, err := loadFromOneTable(r, table, f)
-		if err != nil {
-			return col, err
-		}
-		if col.Count() == 0 {
-			return nil, errors.NotFoundf("Not found")
-		}
-		return col, nil
-	}
-	// todo(marius): this needs to be split into three cases:
-	//  1. IRI corresponds to a collection that is not one of the storage tables (ie, not activities, actors, objects):
-	//    Then we look for correspondences in the collections table.
-	//  2. The IRI corresponds to the activities, actors, objects tables:
-	//    Then we load from the corresponding table using `iri LIKE IRI%` criteria
-	//  3. IRI corresponds to an object: we load directly from the corresponding table.
-	selCnt := fmt.Sprintf("SELECT COUNT(iri) FROM %s WHERE %s", table, strings.Join(clauses, " AND "))
-	err := conn.QueryRow(selCnt, values...).Scan(&total)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, errors.Annotatef(err, "unable to count all rows")
-	}
 	items, err := loadFromOneTable(r, table, f)
 	if err != nil {
-		return nil, err
+		return items, err
 	}
+
+	if !isStorageCollectionIRI(f.GetLink()) {
+		if items.Count() == 0 {
+			return nil, errors.NotFoundf("Not found")
+		}
+		return items, nil
+	}
+
 	par, err := loadFromCollectionTable(r, colIRI(iri), f)
 	if err != nil {
 		return nil, err
@@ -1022,7 +996,6 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 		}
 		return nil, errors.Annotatef(err, "unable to run select")
 	}
-	ff := *f
 
 	var res vocab.CollectionInterface
 	col, err := vocab.UnmarshalJSON(raw)
@@ -1038,6 +1011,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 	if err != nil {
 		return nil, errors.Annotatef(err, "Collection items unmarshal error")
 	}
+	ff := filters.FiltersNew()
 	_ = vocab.OnIRIs(items, func(col *vocab.IRIs) error {
 		for _, iri := range *col {
 			iriF := filters.StringEquals(iri.String())
@@ -1048,7 +1022,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 
 	if len(ff.ItemKey) > 0 {
 		err = vocab.OnCollectionIntf(res, func(col vocab.CollectionInterface) error {
-			retAct, err := loadFromThreeTables(r, &ff)
+			retAct, err := loadFromOneTable(r, getCollectionTable(f.Collection), ff)
 			if err != nil {
 				return err
 			}

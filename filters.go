@@ -96,6 +96,36 @@ func getContextWheres(strs filters.CompStrs) (string, []interface{}) {
 	return getStringFieldInJSONWheres(strs, "context")
 }
 
+func irisFilter(iris vocab.IRIs) filters.CompStrs {
+	f := make(filters.CompStrs, 0, len(iris))
+	for _, iri := range iris {
+		f = append(f, filters.StringEquals(iri.String()))
+	}
+	return f
+}
+
+func replaceFilter(f *filters.Filters, with string) ([]string, []any) {
+	clauses, wheres := getWhereClauses("activities", f)
+	for i, cl := range clauses {
+		clauses[i] = strings.Replace(cl, "iri", with, 1)
+	}
+	return clauses, wheres
+}
+func getActorWheres(f *filters.Filters) (string, []any) {
+	clauses, wheres := replaceFilter(f, "actor")
+	return strings.Join(clauses, " AND "), wheres
+}
+
+func getObjectWheres(f *filters.Filters) (string, []interface{}) {
+	clauses, wheres := replaceFilter(f, "object")
+	return strings.Join(clauses, " AND "), wheres
+}
+
+func getTargetWheres(f *filters.Filters) (string, []interface{}) {
+	clauses, wheres := replaceFilter(f, "target")
+	return strings.Join(clauses, " AND "), wheres
+}
+
 func getURLWheres(strs filters.CompStrs) (string, []interface{}) {
 	clause, values := getStringFieldWheres(strs, "url")
 	jClause, jValues := getStringFieldInJSONWheres(strs, "url")
@@ -156,9 +186,12 @@ func getAttributedToWheres(strs filters.CompStrs) (string, []interface{}) {
 	return getStringFieldInJSONWheres(strs, "attributedTo")
 }
 
-func getWhereClauses(f *filters.Filters) ([]string, []interface{}) {
+func getWhereClauses(table string, f *filters.Filters) ([]string, []interface{}) {
 	var clauses = make([]string, 0)
 	var values = make([]interface{}, 0)
+	if f == nil {
+		return clauses, values
+	}
 
 	if typClause, typValues := getTypeWheres(f.Types()); len(typClause) > 0 {
 		values = append(values, typValues...)
@@ -193,6 +226,21 @@ func getWhereClauses(f *filters.Filters) ([]string, []interface{}) {
 	if ctxtClause, ctxtValues := getContextWheres(f.Context()); len(ctxtClause) > 0 {
 		values = append(values, ctxtValues...)
 		clauses = append(clauses, ctxtClause)
+	}
+
+	if table == "activities" {
+		if byActClause, byActValues := getActorWheres(f.Actor); len(byActClause) > 0 {
+			values = append(values, byActValues...)
+			clauses = append(clauses, byActClause)
+		}
+		if byObjClause, byObjValues := getObjectWheres(f.Object); len(byObjClause) > 0 {
+			values = append(values, byObjValues...)
+			clauses = append(clauses, byObjClause)
+		}
+		if byTarClause, byTarValues := getTargetWheres(f.Target); len(byTarClause) > 0 {
+			values = append(values, byTarValues...)
+			clauses = append(clauses, byTarClause)
+		}
 	}
 
 	if len(clauses) == 0 {
