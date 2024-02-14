@@ -1065,6 +1065,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 
 func delete(l repo, it vocab.Item) error {
 	iri := it.GetLink()
+	cleanupTables := []string{"meta"}
 
 	table := string(filters.ObjectsType)
 	if vocab.ActivityTypes.Contains(it.GetType()) {
@@ -1079,11 +1080,21 @@ func delete(l repo, it vocab.Item) error {
 			table = string(filters.ActivitiesType)
 		}
 	}
+	cleanupTables = append(cleanupTables, table)
 
-	query := fmt.Sprintf("DELETE FROM %s where iri = $1;", table)
-	if _, err := l.conn.Exec(query, it.GetLink()); err != nil {
-		l.errFn("query error: %s\n%s", err, query)
-		return errors.Annotatef(err, "query error")
+	removeFn := func(table string, iri vocab.IRI) error {
+		query := fmt.Sprintf("DELETE FROM %s where iri = $1;", table)
+		if _, err := l.conn.Exec(query, iri); err != nil {
+			l.errFn("query error: %s\n%s", err, query)
+			return errors.Annotatef(err, "query error")
+		}
+		return nil
+	}
+
+	for _, tbl := range cleanupTables {
+		if err := removeFn(tbl, it.GetLink()); err != nil {
+			return err
+		}
 	}
 
 	if l.cache != nil {
