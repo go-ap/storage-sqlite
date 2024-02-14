@@ -178,6 +178,9 @@ func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error
 			return nil, errors.Annotatef(err, "Unable to load client information")
 		}
 	}
+	if c == nil {
+		return nil, errors.NewNotFound(err, "Client could not be found")
+	}
 
 	return c, nil
 }
