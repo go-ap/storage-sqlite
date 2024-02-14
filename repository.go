@@ -442,10 +442,12 @@ func (r *repo) PasswordSet(it vocab.Item, pw []byte) error {
 	if err != nil {
 		return errors.Annotatef(err, "could not generate pw hash")
 	}
-	m := processing.Metadata{
-		Pw: pw,
+	m, _ := r.LoadMetadata(it.GetLink())
+	if m == nil {
+		m = new(processing.Metadata)
 	}
-	return r.SaveMetadata(m, it.GetLink())
+	m.Pw = pw
+	return r.SaveMetadata(*m, it.GetLink())
 }
 
 // PasswordCheck
@@ -1206,9 +1208,9 @@ func (r *repo) SaveKey(iri vocab.IRI, key crypto.PrivateKey) (vocab.Item, error)
 		return ob, errors.Newf("trying to generate keys for invalid ActivityPub object type: %s", typ)
 	}
 
-	m, err := r.LoadMetadata(iri)
-	if err != nil && !errors.IsNotFound(err) {
-		return ob, err
+	m, _ := r.LoadMetadata(iri)
+	if m == nil {
+		m = new(processing.Metadata)
 	}
 	if m.PrivateKey != nil {
 		r.logFn("actor %s already has a private key", iri)
