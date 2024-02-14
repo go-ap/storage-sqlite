@@ -16,7 +16,7 @@ import (
 const defaultTimeout = 1000 * time.Millisecond
 
 const (
-	createClientTable = `CREATE TABLE IF NOT EXISTS "client"(
+	createClientTable = `CREATE TABLE IF NOT EXISTS "clients"(
 	"code" varchar constraint client_code_pkey PRIMARY KEY,
 	"secret" varchar NOT NULL,
 	"redirect_uri" varchar NOT NULL,
@@ -123,7 +123,7 @@ func (r *repo) Close() {
 	r.conn = nil
 }
 
-const getClients = "SELECT code, secret, redirect_uri, extra FROM client;"
+const getClients = "SELECT code, secret, redirect_uri, extra FROM clients;"
 
 // ListClients
 func (r *repo) ListClients() ([]osin.Client, error) {
@@ -156,7 +156,7 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 	return result, err
 }
 
-const getClientSQL = "SELECT code, secret, redirect_uri, extra FROM client WHERE code=?;"
+const getClientSQL = "SELECT code, secret, redirect_uri, extra FROM clients WHERE code=?;"
 
 func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error) {
 	var c *osin.DefaultClient
@@ -277,7 +277,7 @@ func (r *repo) CreateClient(c osin.Client) error {
 	return nil
 }
 
-const removeClient = "DELETE FROM client WHERE code=?"
+const removeClient = "DELETE FROM clients WHERE code=?"
 
 // RemoveClient
 func (r *repo) RemoveClient(id string) error {
