@@ -72,7 +72,7 @@ func Test_repo_CreateClient(t *testing.T) {
 			err = s.Open()
 			be.NilErr(t, err)
 
-			sel := "SELECT code, secret, redirect_uri, extra from client where code=?;"
+			sel := "SELECT code, secret, redirect_uri, extra from clients where code=?;"
 			res, err := s.conn.Query(sel, tt.arg.GetId())
 			be.NilErr(t, err)
 
@@ -110,6 +110,7 @@ func Test_repo_GetClient(t *testing.T) {
 		{
 			name: "missing",
 			arg:  "missing",
+			err:  errClientNotFound(nil),
 		},
 		{
 			name: "found",

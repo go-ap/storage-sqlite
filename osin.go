@@ -25,7 +25,7 @@ const (
 `
 
 	createAuthorizeTable = `CREATE TABLE IF NOT EXISTS "authorize" (
-	"client" varchar REFERENCES client(code),
+	"client" varchar REFERENCES clients(code),
 	"code" varchar constraint authorize_code_pkey PRIMARY KEY,
 	"expires_in" INTEGER,
 	"scope" BLOB,
@@ -37,7 +37,7 @@ const (
 `
 
 	createAccessTable = `CREATE TABLE IF NOT EXISTS "access" (
-	"client" varchar REFERENCES client(code),
+	"client" varchar REFERENCES clients(code),
 	"authorize" varchar REFERENCES authorize(code),
 	"previous" varchar,
 	"token" varchar NOT NULL,
@@ -158,13 +158,17 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 
 const getClientSQL = "SELECT code, secret, redirect_uri, extra FROM clients WHERE code=?;"
 
+func errClientNotFound(err error) error {
+	if err == nil {
+		return errors.NotFoundf("Client could not be found")
+	}
+	return errors.NewNotFound(err, "Client could not be found")
+}
 func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error) {
-	var c *osin.DefaultClient
-
 	rows, err := conn.QueryContext(ctx, getClientSQL, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.NewNotFound(err, "Client could not be found")
+			return nil, errClientNotFound(err)
 		}
 		//s.errFn(log.Ctx{"code": id, "table": "client", "operation": "select"}, "%s", err)
 		return nil, errors.Annotatef(err, "Unable to load client")
@@ -172,17 +176,14 @@ func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error
 	defer rows.Close()
 
 	for rows.Next() {
-		c = new(osin.DefaultClient)
+		c := new(osin.DefaultClient)
 		err = rows.Scan(&c.Id, &c.Secret, &c.RedirectUri, &c.UserData)
 		if err != nil {
 			return nil, errors.Annotatef(err, "Unable to load client information")
 		}
+		return c, nil
 	}
-	if c == nil {
-		return nil, errors.NewNotFound(err, "Client could not be found")
-	}
-
-	return c, nil
+	return nil, errClientNotFound(nil)
 }
 
 // GetClient
@@ -200,8 +201,8 @@ func (r *repo) GetClient(id string) (osin.Client, error) {
 	return getClient(r.conn, ctx, id)
 }
 
-const updateClient = "UPDATE client SET (secret, redirect_uri, extra) = (?, ?, ?) WHERE code=?"
-const updateClientNoExtra = "UPDATE client SET (secret, redirect_uri) = (?, ?) WHERE code=?"
+const updateClient = "UPDATE clients SET (secret, redirect_uri, extra) = (?, ?, ?) WHERE code=?"
+const updateClientNoExtra = "UPDATE clients SET (secret, redirect_uri) = (?, ?) WHERE code=?"
 
 var nilClientErr = errors.Newf("nil client")
 
@@ -240,8 +241,8 @@ func (r *repo) UpdateClient(c osin.Client) error {
 	return nil
 }
 
-const createClientNoExtra = "INSERT INTO client (code, secret, redirect_uri) VALUES (?, ?, ?)"
-const createClient = "INSERT INTO client (code, secret, redirect_uri, extra) VALUES (?, ?, ?, ?)"
+const createClientNoExtra = "INSERT INTO clients (code, secret, redirect_uri) VALUES (?, ?, ?)"
+const createClient = "INSERT INTO clients (code, secret, redirect_uri, extra) VALUES (?, ?, ?, ?)"
 
 // CreateClient
 func (r *repo) CreateClient(c osin.Client) error {
