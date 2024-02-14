@@ -944,21 +944,16 @@ func loadFromDb(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInt
 	if vocab.IsNil(par) {
 		return nil, errors.NotFoundf("Unable to find collection %s", iri)
 	}
-	_ = vocab.OnObject(par, func(ob *vocab.Object) error {
+	err = vocab.OnObject(par, func(ob *vocab.Object) error {
 		ob.ID = iri
 		return nil
 	})
-	if orderedCollectionTypes.Contains(par.GetType()) {
-		_ = vocab.OnOrderedCollection(par, postProcessOrderedCollection(items.Collection()))
-	} else if collectionTypes.Contains(par.GetType()) {
-		_ = vocab.OnCollection(par, postProcessCollection(items.Collection()))
-	}
 	return par, err
 }
 
 func postProcessCollection(items vocab.ItemCollection) vocab.WithCollectionFn {
 	return func(col *vocab.Collection) error {
-		col.Items.Append(items...)
+		col.Items = items
 		if col.TotalItems == 0 {
 			col.TotalItems = col.Items.Count()
 		}
@@ -968,7 +963,7 @@ func postProcessCollection(items vocab.ItemCollection) vocab.WithCollectionFn {
 
 func postProcessOrderedCollection(items vocab.ItemCollection) vocab.WithOrderedCollectionFn {
 	return func(col *vocab.OrderedCollection) error {
-		col.OrderedItems.Append(items...)
+		col.OrderedItems = items
 		sort.Slice(col.OrderedItems, func(i, j int) bool {
 			return vocab.ItemOrderTimestamp(col.OrderedItems[i], col.OrderedItems[j])
 		})
@@ -1025,16 +1020,17 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 	})
 
 	if len(ff.ItemKey) > 0 {
-		err = vocab.OnCollectionIntf(res, func(col vocab.CollectionInterface) error {
-			retAct, err := loadFromOneTable(r, getCollectionTable(f.Collection), &ff)
-			if err != nil {
-				return err
-			}
-			col.Append(retAct.Collection()...)
-			return nil
-		})
+		colItems, err := loadFromOneTable(r, getCollectionTable(f.Collection), &ff)
+		if err != nil {
+			return nil, err
+		}
+		if orderedCollectionTypes.Contains(res.GetType()) {
+			err = vocab.OnOrderedCollection(res, postProcessOrderedCollection(colItems.Collection()))
+		} else if collectionTypes.Contains(res.GetType()) {
+			err = vocab.OnCollection(res, postProcessCollection(colItems.Collection()))
+		}
 	}
-	return res, nil
+	return res, err
 }
 
 func delete(l repo, it vocab.Item) error {
