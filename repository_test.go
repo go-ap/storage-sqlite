@@ -120,6 +120,46 @@ func Test_repo_Load(t *testing.T) {
 			err:  nil,
 		},
 		{
+			name: "load activities",
+			root: rootActor,
+			mocks: []string{
+				`{"id":"https://example.com/activities/122", "type":"Like", "actor": "https://example.com"}`,
+				`{"id":"https://example.com/activities/123", "type":"Follow", "actor": "https://example.com"}`,
+				`{"id":"https://example.com/activities/124", "type":"Create", "actor": "https://example.com"}`,
+				`{"id":"https://example.com/activities", "type":"OrderedCollection", "totalItems":3, "orderedItems":["https://example.com/activities/122", "https://example.com/activities/123", "https://example.com/activities/124"]}`,
+			},
+			arg: "https://example.com/activities",
+			want: &vocab.OrderedCollection{
+				ID:         "https://example.com/activities",
+				Type:       vocab.OrderedCollectionType,
+				TotalItems: 3,
+				OrderedItems: vocab.ItemCollection{
+					&vocab.Like{ID: "https://example.com/activities/122", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
+					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
+					&vocab.Create{ID: "https://example.com/activities/124", Type: vocab.CreateType, Actor: vocab.IRI("https://example.com")},
+				},
+			},
+		},
+		{
+			name: "load activities with filter",
+			root: rootActor,
+			mocks: []string{
+				`{"id":"https://example.com/activities/122", "type":"Like", "actor": "https://example.com"}`,
+				`{"id":"https://example.com/activities/123", "type":"Follow", "actor": "https://example.com"}`,
+				`{"id":"https://example.com/activities/124", "type":"Create", "actor": "https://example.com"}`,
+				`{"id":"https://example.com/activities", "type":"OrderedCollection", "totalItems":3, "orderedItems":["https://example.com/activities/122", "https://example.com/activities/123", "https://example.com/activities/124"]}`,
+			},
+			arg: "https://example.com/activities?type=Follow",
+			want: &vocab.OrderedCollection{
+				ID:         "https://example.com/activities",
+				Type:       vocab.OrderedCollectionType,
+				TotalItems: 3,
+				OrderedItems: vocab.ItemCollection{
+					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
+				},
+			},
+		},
+		{
 			name: "load note from deeper actor",
 			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
 			mocks: []string{
@@ -131,7 +171,7 @@ func Test_repo_Load(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "load note from deeper actor",
+			name: "load article from deeper actor",
 			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
 			mocks: []string{
 				`{"id":"https://example.com/objects/123", "type":"Note"}`,

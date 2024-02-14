@@ -637,7 +637,8 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 	return &ret, err
 }
 
-var storageCollectionPaths = append(filters.FedBOXCollections, append(vocab.OfActor, vocab.OfObject...)...)
+var collectionPaths = append(filters.FedBOXCollections, append(vocab.OfActor, vocab.OfObject...)...)
+var storageCollectionPaths = filters.FedBOXCollections
 
 func colIRI(iri vocab.IRI) vocab.IRI {
 	u, err := iri.URL()
@@ -675,6 +676,11 @@ func iriPath(iri vocab.IRI) string {
 func isStorageCollectionIRI(iri vocab.IRI) bool {
 	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
 	return storageCollectionPaths.Contains(lst)
+}
+
+func isCollectionIRI(iri vocab.IRI) bool {
+	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
+	return collectionPaths.Contains(lst)
 }
 
 func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (vocab.CollectionInterface, error) {
@@ -932,7 +938,7 @@ func loadFromDb(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInt
 		return items, err
 	}
 
-	if !isStorageCollectionIRI(f.GetLink()) {
+	if !isCollectionIRI(f.GetLink()) {
 		if items.Count() == 0 {
 			return nil, errors.NotFoundf("Not found")
 		}
@@ -950,6 +956,13 @@ func loadFromDb(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInt
 		ob.ID = iri
 		return nil
 	})
+	if isStorageCollectionIRI(iri) {
+		if orderedCollectionTypes.Contains(par.GetType()) {
+			_ = vocab.OnOrderedCollection(par, postProcessOrderedCollection(items.Collection()))
+		} else if collectionTypes.Contains(par.GetType()) {
+			_ = vocab.OnCollection(par, postProcessCollection(items.Collection()))
+		}
+	}
 	return par, err
 }
 
