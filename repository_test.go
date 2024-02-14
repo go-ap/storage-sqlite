@@ -33,9 +33,29 @@ func saveMocks(t *testing.T, base string, root vocab.Item, mocks ...string) stri
 	mocks = append(mocks, string(rootVal))
 	for _, mock := range mocks {
 		it, _ := vocab.UnmarshalJSON([]byte(mock))
+		values := make([]any, 0)
+		fields := make([]string, 0)
+		params := make([]string, 0)
+
 		table := getCollectionTypeFromItem(it)
-		query := fmt.Sprintf(upsertQ, table, strings.Join([]string{"raw"}, ", "), strings.Join([]string{"?"}, ", "))
-		res, err := db.Exec(query, []byte(mock))
+
+		values = append(values, []byte(mock))
+		fields = append(fields, "raw")
+		params = append(params, "?")
+		if table == "collections" {
+			vocab.OnCollectionIntf(it, func(col vocab.CollectionInterface) error {
+				rawItems, err := vocab.MarshalJSON(col.Collection())
+				if err != nil {
+					return err
+				}
+				fields = append(fields, "items")
+				values = append(values, rawItems)
+				params = append(params, "?")
+				return nil
+			})
+		}
+		query := fmt.Sprintf(upsertQ, table, strings.Join(fields, ", "), strings.Join(params, ", "))
+		res, err := db.Exec(query, values...)
 		be.NilErr(t, err)
 
 		rows, err := res.RowsAffected()
@@ -120,6 +140,43 @@ func Test_repo_Load(t *testing.T) {
 			arg:  "https://example.com/objects/124",
 			want: &vocab.Note{ID: "https://example.com/objects/124", Type: vocab.ArticleType},
 			err:  nil,
+		},
+		{
+			name: "load outbox of deeper actor",
+			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
+			mocks: []string{
+				`{"id":"https://example.com/objects/1", "type":"Note"}`,
+				`{"id":"https://example.com/objects/2", "type":"Article"}`,
+				`{"id":"https://example.com/actors/jdoe/outbox", "type":"OrderedCollection", "totalItems":2, "orderedItems":["https://example.com/objects/1","https://example.com/objects/2"]}`,
+			},
+			arg: "https://example.com/actors/jdoe/outbox",
+			want: &vocab.OrderedCollection{
+				ID:         "https://example.com/actors/jdoe",
+				Type:       vocab.OrderedCollectionType,
+				TotalItems: 2,
+				OrderedItems: vocab.ItemCollection{
+					&vocab.Note{ID: "https://example.com/objects/1", Type: vocab.NoteType},
+					&vocab.Article{ID: "https://example.com/objects/2", Type: vocab.ArticleType},
+				},
+			},
+		},
+		{
+			name: "load filtered outbox of deeper actor",
+			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
+			mocks: []string{
+				`{"id":"https://example.com/objects/1", "type":"Note"}`,
+				`{"id":"https://example.com/objects/2", "type":"Article"}`,
+				`{"id":"https://example.com/actors/jdoe/outbox", "type":"OrderedCollection", "totalItems":2, "orderedItems":["https://example.com/objects/1","https://example.com/objects/2"]}`,
+			},
+			arg: "https://example.com/actors/jdoe/outbox?type=Note",
+			want: &vocab.OrderedCollection{
+				ID:         "https://example.com/actors/jdoe",
+				Type:       vocab.OrderedCollectionType,
+				TotalItems: 1,
+				OrderedItems: vocab.ItemCollection{
+					&vocab.Note{ID: "https://example.com/objects/1", Type: vocab.NoteType},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {

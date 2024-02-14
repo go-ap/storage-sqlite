@@ -105,6 +105,8 @@ func getCollectionTypeFromItem(it vocab.Item) vocab.CollectionPath {
 		return "activities"
 	case vocab.IntransitiveActivityTypes.Contains(it.GetType()):
 		return "activities"
+	case append(collectionTypes, orderedCollectionTypes...).Contains(it.GetType()):
+		return "collections"
 	default:
 		if _, isActor := it.(*vocab.Person); isActor {
 			return "actors"
