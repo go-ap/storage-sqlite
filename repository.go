@@ -584,25 +584,19 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 		}
 	}
 	clauses, values := getWhereClauses(f)
-	var total uint = 0
 
 	selects := make([]string, 0, 3)
-	counts := make([]string, 0, 3)
+	params := make([]any, 0, 3*len(values))
 	for _, table := range []string{"actors", "objects", "activities"} {
-		counts = append(counts, fmt.Sprintf("SELECT COUNT(iri) FROM %s WHERE %s", table, strings.Join(clauses, " AND ")))
-		selects = append(selects, fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY published %s", table, strings.Join(clauses, " AND "), getLimit(f)))
-	}
-	selCnt := strings.Join(counts, " UNION ")
-	if err := conn.QueryRow(selCnt, values...).Scan(&total); err != nil {
-		return nil, errors.Annotatef(err, "unable to count all rows")
-	}
-	ret := make(vocab.ItemCollection, 0)
-	if total == 0 {
-		return &ret, nil
+		selects = append(selects, fmt.Sprintf("SELECT iri, raw, published FROM %s WHERE %s", table, strings.Join(clauses, " AND ")))
+		params = append(params, values...)
 	}
 
-	sel := strings.Join(counts, " UNION ")
-	rows, err := conn.Query(sel, values...)
+	ret := make(vocab.ItemCollection, 0)
+
+	//sel := strings.Join(selects, " UNION ")
+	sel := fmt.Sprintf(`select iri, raw from (%s) %s order by published;`, strings.Join(selects, " UNION "), getLimit(f))
+	rows, err := conn.Query(sel, params...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -628,18 +622,10 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 		}
 		ret = append(ret, it)
 	}
-	/*
-		if table == "actors" {
-			ret = loadActorFirstLevelIRIProperties(r, ret, f)
-		}
-		if table == "objects" {
-			ret = loadObjectFirstLevelIRIProperties(r, ret, f)
-		}
-		if table == "activities" {
-			ret = runActivityFilters(r, ret, f)
-		}
-		ret = runObjectFilters(r, ret, f)
-	*/
+	ret = loadActorFirstLevelIRIProperties(r, ret, f)
+	ret = loadObjectFirstLevelIRIProperties(r, ret, f)
+	ret = runActivityFilters(r, ret, f)
+	ret = runObjectFilters(r, ret, f)
 	return &ret, err
 }
 
@@ -706,7 +692,7 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 		return &ret, nil
 	}
 
-	sel := fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY published %s", table, strings.Join(clauses, " AND "), getLimit(f))
+	sel := fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY published %s;", table, strings.Join(clauses, " AND "), getLimit(f))
 	rows, err := conn.Query(sel, values...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -981,28 +967,32 @@ func loadFromDb(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInt
 		return nil
 	})
 	if orderedCollectionTypes.Contains(par.GetType()) {
-		_ = vocab.OnOrderedCollection(par, postProcessOrderedItems(items.Collection()))
+		_ = vocab.OnOrderedCollection(par, postProcessOrderedCollection(items.Collection()))
 	} else if collectionTypes.Contains(par.GetType()) {
-		_ = vocab.OnCollection(par, postProcessItems(items.Collection()))
+		_ = vocab.OnCollection(par, postProcessCollection(items.Collection()))
 	}
 	return par, err
 }
 
-func postProcessItems(items vocab.ItemCollection) vocab.WithCollectionFn {
+func postProcessCollection(items vocab.ItemCollection) vocab.WithCollectionFn {
 	return func(col *vocab.Collection) error {
-		col.Items = items
-		col.TotalItems = uint(len(items))
+		col.Items.Append(items...)
+		if col.TotalItems == 0 {
+			col.TotalItems = col.Items.Count()
+		}
 		return nil
 	}
 }
 
-func postProcessOrderedItems(items vocab.ItemCollection) vocab.WithOrderedCollectionFn {
+func postProcessOrderedCollection(items vocab.ItemCollection) vocab.WithOrderedCollectionFn {
 	return func(col *vocab.OrderedCollection) error {
-		col.OrderedItems = items
+		col.OrderedItems.Append(items...)
 		sort.Slice(col.OrderedItems, func(i, j int) bool {
 			return vocab.ItemOrderTimestamp(col.OrderedItems[i], col.OrderedItems[j])
 		})
-		col.TotalItems = uint(len(items))
+		if col.TotalItems == 0 {
+			col.TotalItems = col.OrderedItems.Count()
+		}
 		return nil
 	}
 }
