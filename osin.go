@@ -142,6 +142,8 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 		r.errFn("Error listing clients: %+s", err)
 		return result, errors.Annotatef(err, "Unable to load clients")
 	}
+	defer rows.Close()
+
 	for rows.Next() {
 		c := new(osin.DefaultClient)
 		err = rows.Scan(&c.Id, &c.Secret, &c.RedirectUri, &c.UserData)
@@ -167,6 +169,8 @@ func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error
 		//s.errFn(log.Ctx{"code": id, "table": "client", "operation": "select"}, "%s", err)
 		return nil, errors.Annotatef(err, "Unable to load client")
 	}
+	defer rows.Close()
+
 	for rows.Next() {
 		c = new(osin.DefaultClient)
 		err = rows.Scan(&c.Id, &c.Secret, &c.RedirectUri, &c.UserData)
@@ -344,6 +348,7 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 		//s.errFn(log.Ctx{"code": code, "table": "authorize", "operation": "select"}, err.Error())
 		return nil, errors.Annotatef(err, "Unable to load authorize token")
 	}
+	defer rows.Close()
 
 	var client string
 	for rows.Next() {
@@ -473,6 +478,8 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string) (*osin.AccessDat
 	} else if err != nil {
 		return nil, errors.Annotatef(err, "Unable to load access token")
 	}
+	defer rows.Close()
+
 	var createdAt string
 	var client, authorize, prev sql.NullString
 	for rows.Next() {

@@ -247,6 +247,8 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 		r.errFn("query error: %s\n%s\n%#v", err, colSel)
 		return errors.NotFoundf("Unable to load %s", col.GetLink())
 	}
+	defer rows.Close()
+
 	var c vocab.Item
 	for rows.Next() {
 		var iri string
@@ -319,6 +321,8 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	if err != nil {
 		r.logFn("unable to load collection object for %s: %s", col.GetLink(), err.Error())
 	} else {
+		defer rows.Close()
+
 		for rows.Next() {
 			var iri string
 			var raw []byte
@@ -603,6 +607,7 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 		}
 		return nil, errors.Annotatef(err, "unable to run select")
 	}
+	defer rows.Close()
 
 	// Iterate through the result set
 	for rows.Next() {
@@ -700,6 +705,7 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 		}
 		return nil, errors.Annotatef(err, "unable to run select")
 	}
+	defer rows.Close()
 
 	// Iterate through the result set
 	for rows.Next() {
