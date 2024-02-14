@@ -1011,7 +1011,9 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 	if err != nil {
 		return nil, errors.Annotatef(err, "Collection items unmarshal error")
 	}
-	ff := filters.FiltersNew()
+	ff := *f
+	f.Key = f.Key[:0]
+	f.ItemKey = f.ItemKey[:0]
 	_ = vocab.OnIRIs(items, func(col *vocab.IRIs) error {
 		for _, iri := range *col {
 			iriF := filters.StringEquals(iri.String())
@@ -1022,7 +1024,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 
 	if len(ff.ItemKey) > 0 {
 		err = vocab.OnCollectionIntf(res, func(col vocab.CollectionInterface) error {
-			retAct, err := loadFromOneTable(r, getCollectionTable(f.Collection), ff)
+			retAct, err := loadFromOneTable(r, getCollectionTable(f.Collection), &ff)
 			if err != nil {
 				return err
 			}
