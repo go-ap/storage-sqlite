@@ -80,6 +80,7 @@ func checkErrorsEqual(t *testing.T, wanted, got error) {
 }
 
 var rootActor = vocab.Actor{ID: "https://example.com", Type: vocab.ActorType}
+var jdoeActor = vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.PersonType}
 
 func Test_repo_Load(t *testing.T) {
 	tests := []struct {
@@ -107,7 +108,6 @@ func Test_repo_Load(t *testing.T) {
 			root: rootActor,
 			arg:  "https://example.com",
 			want: &rootActor,
-			err:  nil,
 		},
 		{
 			name: "load activity",
@@ -115,16 +115,8 @@ func Test_repo_Load(t *testing.T) {
 			mocks: []string{
 				`{"id":"https://example.com/activities/123", "type":"Follow", "actor": "https://example.com"}`,
 			},
-			arg: "https://example.com/activities/123",
-			want: &vocab.Follow{
-				ID:   "https://example.com/activities/123",
-				Type: vocab.FollowType,
-				Actor: &vocab.Actor{
-					ID:   vocab.IRI("https://example.com"),
-					Type: vocab.ActorType,
-				},
-			},
-			err: nil,
+			arg:  "https://example.com/activities/123",
+			want: &vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: &rootActor},
 		},
 		{
 			name: "load activities",
@@ -141,9 +133,9 @@ func Test_repo_Load(t *testing.T) {
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 3,
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Like{ID: "https://example.com/activities/122", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
-					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
-					&vocab.Create{ID: "https://example.com/activities/124", Type: vocab.CreateType, Actor: vocab.IRI("https://example.com")},
+					&vocab.Like{ID: "https://example.com/activities/122", Type: vocab.LikeType, Actor: &rootActor},
+					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: &rootActor},
+					&vocab.Create{ID: "https://example.com/activities/124", Type: vocab.CreateType, Actor: &rootActor},
 				},
 			},
 		},
@@ -158,39 +150,37 @@ func Test_repo_Load(t *testing.T) {
 			},
 			arg: "https://example.com/activities?type=Follow",
 			want: &vocab.OrderedCollection{
-				ID:         "https://example.com/activities",
+				ID:         "https://example.com/activities?type=Follow",
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 3,
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
+					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: &rootActor},
 				},
 			},
 		},
 		{
 			name: "load note from deeper actor",
-			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
+			root: jdoeActor,
 			mocks: []string{
 				`{"id":"https://example.com/objects/123", "type":"Note"}`,
 				`{"id":"https://example.com/objects/124", "type":"Article"}`,
 			},
 			arg:  "https://example.com/objects/123",
 			want: &vocab.Note{ID: "https://example.com/objects/123", Type: vocab.NoteType},
-			err:  nil,
 		},
 		{
 			name: "load article from deeper actor",
-			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
+			root: jdoeActor,
 			mocks: []string{
 				`{"id":"https://example.com/objects/123", "type":"Note"}`,
 				`{"id":"https://example.com/objects/124", "type":"Article"}`,
 			},
 			arg:  "https://example.com/objects/124",
 			want: &vocab.Note{ID: "https://example.com/objects/124", Type: vocab.ArticleType},
-			err:  nil,
 		},
 		{
 			name: "load outbox of deeper actor",
-			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
+			root: jdoeActor,
 			mocks: []string{
 				`{"id":"https://example.com/activities/1", "type":"Like", "actor": "https://example.com/actors/jdoe"}`,
 				`{"id":"https://example.com/activities/2", "type":"Create", "actor": "https://example.com/actors/jdoe"}`,
@@ -202,14 +192,14 @@ func Test_repo_Load(t *testing.T) {
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 2,
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Like{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com/actors/jdoe")},
-					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: vocab.IRI("https://example.com/actors/jdoe")},
+					&vocab.Like{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: &jdoeActor},
+					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jdoeActor},
 				},
 			},
 		},
 		{
 			name: "load filtered outbox of deeper actor",
-			root: vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.ActorType},
+			root: jdoeActor,
 			mocks: []string{
 				`{"id":"https://example.com/activities/1", "type":"Like", "actor": "https://example.com/actors/jdoe"}`,
 				`{"id":"https://example.com/activities/2", "type":"Create", "actor": "https://example.com/actors/jdoe"}`,
@@ -219,9 +209,9 @@ func Test_repo_Load(t *testing.T) {
 			want: &vocab.OrderedCollection{
 				ID:         "https://example.com/actors/jdoe/outbox?type=Create",
 				Type:       vocab.OrderedCollectionType,
-				TotalItems: 1,
+				TotalItems: 2,
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: vocab.IRI("https://example.com/actors/jdoe")},
+					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jdoeActor},
 				},
 			},
 		},
@@ -239,7 +229,7 @@ func Test_repo_Load(t *testing.T) {
 			got, err := r.Load(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 
-			be.True(t, vocab.ItemsEqual(tt.want, got))
+			be.DeepEqual(t, tt.want, got)
 		})
 	}
 }
@@ -410,7 +400,6 @@ func Test_repo_AddTo(t *testing.T) {
 				col: "https://example.com/1",
 				it:  nil,
 			},
-			err: nil,
 		},
 		{
 			name: "test",
@@ -419,7 +408,6 @@ func Test_repo_AddTo(t *testing.T) {
 				col: "https://example.com/inbox",
 				it:  &vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType},
 			},
-			err: nil,
 		},
 	}
 	for _, tt := range tests {
