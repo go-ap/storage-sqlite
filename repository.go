@@ -857,7 +857,7 @@ func loadTargetForActivity(r *repo, a *vocab.Activity) error {
 	if ob, err := loadFromOneTable(r, "objects", filtersFromItem(a.Target)); err == nil {
 		if c := ob.Collection(); c.Count() > 1 {
 			a.Target = ob.Collection()
-		} else {
+		} else if c.Count() == 1 {
 			a.Target = ob.Collection().First()
 		}
 	}
@@ -872,7 +872,7 @@ func loadObjectForActivity(r *repo, a *vocab.Activity) error {
 	if ob, err := loadFromOneTable(r, "objects", filtersFromItem(a.Object)); err == nil {
 		if c := ob.Collection(); c.Count() > 1 {
 			a.Object = ob.Collection()
-		} else {
+		} else if c.Count() == 1 {
 			a.Object = ob.Collection().First()
 		}
 	}
@@ -902,7 +902,7 @@ func loadActorForActivity(r *repo, a *vocab.Activity) error {
 	if ob, err := loadFromOneTable(r, "actors", filtersFromItem(a.Actor)); err == nil {
 		if c := ob.Collection(); c.Count() > 1 {
 			a.Actor = ob.Collection()
-		} else {
+		} else if c.Count() == 1 {
 			a.Actor = ob.Collection().First()
 		}
 	}
@@ -1077,6 +1077,10 @@ func isHiddenCollectionIRI(i vocab.IRI) bool {
 func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
 	conn := r.conn
 
+	var col vocab.Item
+	var items vocab.IRIs
+	var res vocab.CollectionInterface
+
 	var cIri vocab.IRI
 	var itemsRaw []byte
 	var raw []byte
@@ -1089,9 +1093,8 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 		return nil, errors.Annotatef(err, "unable to run select")
 	}
 
-	var res vocab.CollectionInterface
-	col, err := vocab.UnmarshalJSON(raw)
-	if err != nil {
+	var err error
+	if col, err = vocab.UnmarshalJSON(raw); err != nil {
 		return nil, errors.Annotatef(err, "Collection unmarshal error")
 	}
 	var ok bool
@@ -1099,8 +1102,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 		return nil, errors.Newf("loaded item is not a valid Collection")
 	}
 
-	items, err := vocab.UnmarshalJSON(itemsRaw)
-	if err != nil {
+	if err = jsonld.Unmarshal(itemsRaw, &items); err != nil {
 		return nil, errors.Annotatef(err, "Collection items unmarshal error")
 	}
 	ff := *f
