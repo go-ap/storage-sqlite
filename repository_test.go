@@ -115,9 +115,16 @@ func Test_repo_Load(t *testing.T) {
 			mocks: []string{
 				`{"id":"https://example.com/activities/123", "type":"Follow", "actor": "https://example.com"}`,
 			},
-			arg:  "https://example.com/activities/123",
-			want: &vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
-			err:  nil,
+			arg: "https://example.com/activities/123",
+			want: &vocab.Follow{
+				ID:   "https://example.com/activities/123",
+				Type: vocab.FollowType,
+				Actor: &vocab.Actor{
+					ID:   vocab.IRI("https://example.com"),
+					Type: vocab.ActorType,
+				},
+			},
+			err: nil,
 		},
 		{
 			name: "load activities",
