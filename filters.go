@@ -228,21 +228,6 @@ func getWhereClauses(table string, f *filters.Filters) ([]string, []interface{})
 		clauses = append(clauses, ctxtClause)
 	}
 
-	if table == "activities" {
-		if byActClause, byActValues := getActorWheres(f.Actor); len(byActClause) > 0 {
-			values = append(values, byActValues...)
-			clauses = append(clauses, byActClause)
-		}
-		if byObjClause, byObjValues := getObjectWheres(f.Object); len(byObjClause) > 0 {
-			values = append(values, byObjValues...)
-			clauses = append(clauses, byObjClause)
-		}
-		if byTarClause, byTarValues := getTargetWheres(f.Target); len(byTarClause) > 0 {
-			values = append(values, byTarValues...)
-			clauses = append(clauses, byTarClause)
-		}
-	}
-
 	if len(clauses) == 0 {
 		if filters.FedBOXCollections.Contains(f.Collection) {
 			clauses = append(clauses, " true")
