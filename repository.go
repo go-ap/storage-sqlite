@@ -1078,19 +1078,29 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 	conn := r.conn
 
 	var col vocab.Item
-	var items vocab.IRIs
+	var items vocab.Item
 	var res vocab.CollectionInterface
 
 	var cIri vocab.IRI
 	var itemsRaw []byte
 	var raw []byte
 
-	sel := "SELECT iri, raw, items FROM collections WHERE iri = ?"
-	if err := conn.QueryRow(sel, iri.String()).Scan(&cIri, &raw, &itemsRaw); err != nil {
+	table := getCollectionTableFromFilter(f)
+
+	var selWithItems string
+	if isStorageCollectionIRI(iri) {
+		selWithItems = fmt.Sprintf(`select c.iri, c.raw, json_group_array(json(act.raw)) from collections c
+		left join %s act where c.iri = ? group by c.iri;`, table)
+	} else {
+		selWithItems = fmt.Sprintf(`select iri, raw, items from (select c.iri iri, c.raw raw, json_group_array(json(act.raw)) items from collections c, json_each(c.items)
+		left join %s act on value = act.iri where c.iri = ?
+	union select c.iri iri, c.raw raw, c.items items from collections c where c.iri = ?) where iri is not null group by iri;`, table)
+	}
+	if err := conn.QueryRow(selWithItems, iri.String(), iri.String()).Scan(&cIri, &raw, &itemsRaw); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.NotFoundf("Unable to find collection %s", f.Collection)
+			return nil, errors.NotFoundf("Unable to find collection %s", iri)
 		}
-		return nil, errors.Annotatef(err, "unable to run select")
+		return nil, errors.Annotatef(err, "unable to run select for %s", iri)
 	}
 
 	var err error
@@ -1102,31 +1112,29 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 		return nil, errors.Newf("loaded item is not a valid Collection")
 	}
 
-	if err = jsonld.Unmarshal(itemsRaw, &items); err != nil {
+	if items, err = vocab.UnmarshalJSON(itemsRaw); err != nil {
 		return nil, errors.Annotatef(err, "Collection items unmarshal error")
 	}
-	ff := *f
-	f.Key = f.Key[:0]
-	f.ItemKey = f.ItemKey[:0]
-	_ = vocab.OnIRIs(items, func(col *vocab.IRIs) error {
-		for _, iri := range *col {
-			iriF := filters.StringEquals(iri.String())
-			ff.ItemKey = append(ff.ItemKey, iriF)
+	err = vocab.OnItemCollection(items, func(col *vocab.ItemCollection) error {
+		if table == "actors" {
+			*col = loadActorFirstLevelIRIProperties(r, *col, f)
 		}
-		return nil
-	})
+		if table == "objects" {
+			*col = loadObjectFirstLevelIRIProperties(r, *col, f)
+		}
+		if table == "activities" {
+			*col = loadActivityFirstLevelIRIProperties(r, *col, f)
+			*col = runActivityFilters(r, *col, f)
+		}
+		*col = runObjectFilters(r, *col, f)
 
-	if len(ff.ItemKey) > 0 {
-		colItems, err := loadFromOneTable(r, getCollectionTable(f.Collection), &ff)
-		if err != nil {
-			return nil, err
-		}
 		if orderedCollectionTypes.Contains(res.GetType()) {
-			err = vocab.OnOrderedCollection(res, postProcessOrderedCollection(colItems.Collection()))
+			err = vocab.OnOrderedCollection(res, postProcessOrderedCollection(col.Collection()))
 		} else if collectionTypes.Contains(res.GetType()) {
-			err = vocab.OnCollection(res, postProcessCollection(colItems.Collection()))
+			err = vocab.OnCollection(res, postProcessCollection(col.Collection()))
 		}
-	}
+		return err
+	})
 	return res, err
 }
 
@@ -1207,18 +1215,18 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 		}
 	}
 
-	query := fmt.Sprintf("INSERT OR REPLACE INTO %s (%s) VALUES (%s);", table, strings.Join(columns, ", "), strings.Join(tokens, ", "))
+	query := fmt.Sprintf(`INSERT OR REPLACE INTO %s (%s) VALUES (%s);`, table, strings.Join(columns, ", "), strings.Join(tokens, ", "))
 
 	if _, err = r.conn.Exec(query, params...); err != nil {
 		r.errFn("query error: %s\n%s", err, query)
 		return it, errors.Annotatef(err, "query error")
 	}
-	col, key := path.Split(iri.String())
-	if len(key) > 0 && vocab.ValidCollection(vocab.CollectionPath(path.Base(col))) {
+	col, _ := path.Split(iri.String())
+	if isCollectionIRI(vocab.IRI(col)) {
 		// Add private items to the collections table
 		if colIRI, k := vocab.Split(vocab.IRI(col)); k == "" {
 			if err := r.addTo(colIRI, it); err != nil {
-				return it, err
+				r.logFn("warning adding item: %s", colIRI, err)
 			}
 		}
 	}
@@ -1244,16 +1252,17 @@ func createCollectionInTable(r *repo, it vocab.Item) (vocab.Item, error) {
 	}
 
 	ff, _ := filters.FiltersFromIRI(it.GetLink())
-	colObject, err := loadFromCollectionTable(r, colIRI(it.GetLink()), ff)
+	colObject, _ := loadFromCollectionTable(r, colIRI(it.GetLink()), ff)
 	if colObject == nil {
+		var err error
 		c, ok := it.(vocab.CollectionInterface)
 		if !ok {
 			c = newOrderedCollection(it.GetLink())
 		}
 		it, err = r.createCollection(c)
-	}
-	if err != nil {
-		return nil, errors.Annotatef(err, "saving collection object is not done")
+		if err != nil {
+			return nil, errors.Annotatef(err, "saving collection object is not done")
+		}
 	}
 
 	return it.GetLink(), nil
