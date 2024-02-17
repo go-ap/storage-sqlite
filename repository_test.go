@@ -46,7 +46,7 @@ func saveMocks(t *testing.T, base string, root vocab.Item, mocks ...string) stri
 			vocab.OnCollectionIntf(it, func(col vocab.CollectionInterface) error {
 				rawItems, err := vocab.MarshalJSON(col.Collection())
 				if err != nil {
-					return err
+					rawItems = emptyCol
 				}
 				fields = append(fields, "items")
 				values = append(values, rawItems)
@@ -80,7 +80,7 @@ func checkErrorsEqual(t *testing.T, wanted, got error) {
 }
 
 var rootActor = vocab.Actor{ID: "https://example.com", Type: vocab.ActorType}
-var jdoeActor = vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.PersonType}
+var jDoeActor = vocab.Actor{ID: "https://example.com/actors/jdoe", Type: vocab.PersonType}
 
 func Test_repo_Load(t *testing.T) {
 	tests := []struct {
@@ -143,10 +143,10 @@ func Test_repo_Load(t *testing.T) {
 			name: "load activities with filter",
 			root: rootActor,
 			mocks: []string{
+				`{"id":"https://example.com/activities", "type":"OrderedCollection", "totalItems":3}`,
 				`{"id":"https://example.com/activities/122", "type":"Like", "actor": "https://example.com"}`,
 				`{"id":"https://example.com/activities/123", "type":"Follow", "actor": "https://example.com"}`,
 				`{"id":"https://example.com/activities/124", "type":"Create", "actor": "https://example.com"}`,
-				`{"id":"https://example.com/activities", "type":"OrderedCollection", "totalItems":3, "orderedItems":["https://example.com/activities/122", "https://example.com/activities/123", "https://example.com/activities/124"]}`,
 			},
 			arg: "https://example.com/activities?type=Follow",
 			want: &vocab.OrderedCollection{
@@ -160,7 +160,7 @@ func Test_repo_Load(t *testing.T) {
 		},
 		{
 			name: "load note from deeper actor",
-			root: jdoeActor,
+			root: jDoeActor,
 			mocks: []string{
 				`{"id":"https://example.com/objects/123", "type":"Note"}`,
 				`{"id":"https://example.com/objects/124", "type":"Article"}`,
@@ -170,7 +170,7 @@ func Test_repo_Load(t *testing.T) {
 		},
 		{
 			name: "load article from deeper actor",
-			root: jdoeActor,
+			root: jDoeActor,
 			mocks: []string{
 				`{"id":"https://example.com/objects/123", "type":"Note"}`,
 				`{"id":"https://example.com/objects/124", "type":"Article"}`,
@@ -180,7 +180,7 @@ func Test_repo_Load(t *testing.T) {
 		},
 		{
 			name: "load outbox of deeper actor",
-			root: jdoeActor,
+			root: jDoeActor,
 			mocks: []string{
 				`{"id":"https://example.com/activities/1", "type":"Like", "actor": "https://example.com/actors/jdoe"}`,
 				`{"id":"https://example.com/activities/2", "type":"Create", "actor": "https://example.com/actors/jdoe"}`,
@@ -192,14 +192,14 @@ func Test_repo_Load(t *testing.T) {
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 2,
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Like{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: &jdoeActor},
-					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jdoeActor},
+					&vocab.Like{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: &jDoeActor},
+					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jDoeActor},
 				},
 			},
 		},
 		{
 			name: "load filtered outbox of deeper actor",
-			root: jdoeActor,
+			root: jDoeActor,
 			mocks: []string{
 				`{"id":"https://example.com/activities/1", "type":"Like", "actor": "https://example.com/actors/jdoe"}`,
 				`{"id":"https://example.com/activities/2", "type":"Create", "actor": "https://example.com/actors/jdoe"}`,
@@ -211,7 +211,7 @@ func Test_repo_Load(t *testing.T) {
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 2,
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jdoeActor},
+					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jDoeActor},
 				},
 			},
 		},

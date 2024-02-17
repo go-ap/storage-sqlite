@@ -85,9 +85,11 @@ func (r *repo) close() (err error) {
 	return
 }
 
+var allCollections = append(filters.FedBOXCollections, vocab.ActivityPubCollections...)
+
 func getCollectionTypeFromIRI(i vocab.IRI) vocab.CollectionPath {
-	col := vocab.CollectionPath(path.Base(i.String()))
-	if !(filters.FedBOXCollections.Contains(col) || vocab.ActivityPubCollections.Contains(col)) {
+	_, col := allCollections.Split(i)
+	if !(allCollections.Contains(col)) {
 		b, _ := path.Split(i.String())
 		col = vocab.CollectionPath(path.Base(b))
 	}
@@ -169,7 +171,7 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 		return nil, err
 	}
 
-	ret, err := loadFromDb(r, i, f)
+	ret, err := load(r, i, f)
 	if ret != nil && ret.Count() == 1 && f.IsItemIRI() {
 		return ret.Collection().First(), err
 	}
@@ -326,13 +328,12 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	var itemsRaw []byte
 
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
-	err := r.conn.QueryRow(colSel, col.GetLink()).Scan(&iri, &raw, &itemsRaw)
-	if err != nil {
-		r.logFn("unable to load collection object for %s: %s", col.GetLink(), err.Error())
-		if errors.Is(err, sql.ErrNoRows) && isHiddenCollectionIRI(col.GetLink()) {
+	if err := r.conn.QueryRow(colSel, col.GetLink()).Scan(&iri, &raw, &itemsRaw); err != nil {
+		r.logFn("unable to load collection object for %s: %s", col, err.Error())
+		if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col) || isStorageCollectionIRI(col)) {
 			// NOTE(marius): this creates blocked/ignored collections if they don't exist
-			if c, err = save(r, newOrderedCollection(col.GetLink())); err != nil {
-				r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col.GetLink()})
+			if c, err = r.createCollection(newOrderedCollection(col.GetLink())); err != nil {
+				r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
 			}
 			items = make(vocab.IRIs, 0)
 		}
@@ -347,12 +348,11 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	}
 
 	if c == nil {
-		return errors.NotFoundf("not found Collection %s", col.GetLink())
+		return errors.NotFoundf("not found Collection %s", col)
 	}
 
-	err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
+	err := vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
 		col.Updated = time.Now().UTC()
-		// NOTE(marius): this should ideally be empty
 		for _, cit := range col.OrderedItems {
 			items = append(items, cit.GetLink())
 		}
@@ -361,7 +361,12 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	if err != nil {
 		return errors.Annotatef(err, "unable to update Collection")
 	}
-	items = append(items, it.GetLink())
+	if !isStorageCollectionIRI(col) {
+		// NOTE(marius): for storage collections (objects, activities, actors), we don't need
+		// to save the items in the collection items array.
+		// This covers the other collections.
+		items = append(items, it.GetLink())
+	}
 
 	rawItems, err := vocab.MarshalJSON(items)
 	if err != nil {
@@ -1010,8 +1015,8 @@ func childFilter(r *repo, ret *vocab.ItemCollection, filterFn iriFilterFn, keepF
 var orderedCollectionTypes = vocab.ActivityVocabularyTypes{vocab.OrderedCollectionPageType, vocab.OrderedCollectionType}
 var collectionTypes = vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vocab.CollectionType}
 
-func loadFromDb(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
-	table := getCollectionTableFromFilter(f)
+func load(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
+	table := getCollectionTypeFromIRI(iri)
 
 	items, err := loadFromOneTable(r, table, f)
 	if err != nil {
@@ -1085,7 +1090,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 	var itemsRaw []byte
 	var raw []byte
 
-	table := getCollectionTableFromFilter(f)
+	table := getCollectionTypeFromIRI(iri)
 
 	var selWithItems string
 	if isStorageCollectionIRI(iri) {
