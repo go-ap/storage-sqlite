@@ -9,7 +9,7 @@ require (
 	github.com/go-ap/errors v0.0.0-20231003111023-183eef4b31b7
 	github.com/go-ap/filters v0.0.0-20240211125015-2de118fbc889
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
-	github.com/go-ap/processing v0.0.0-20240219142515-440789f7e51f
+	github.com/go-ap/processing v0.0.0-20240219170415-0288cef1f678
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/openshift/osin v1.0.1
 	golang.org/x/crypto v0.19.0

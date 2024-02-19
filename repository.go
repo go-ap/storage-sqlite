@@ -284,7 +284,7 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 	}
 	allItems = append(allItems, it.GetLink())
 
-	raw, err := vocab.MarshalJSON(it)
+	raw, err := vocab.MarshalJSON(c)
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
@@ -296,7 +296,7 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 	query := "UPDATE collections SET raw = ?, items = ? WHERE iri = ?;"
 	_, err = r.conn.Exec(query, raw, items, c.GetLink())
 	if err != nil {
-		r.errFn("query error: %s\n%s\n%#v", err, query)
+		r.errFn("query error: %s\n%s\n%s", err, query, c.GetLink())
 		return errors.Annotatef(err, "query error")
 	}
 
@@ -348,7 +348,7 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	}
 
 	if c == nil {
-		return errors.NotFoundf("not found Collection %s", col)
+		return errors.NotFoundf("not found Collection %s", col.GetLink())
 	}
 
 	err := vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
