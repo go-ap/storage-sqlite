@@ -239,15 +239,19 @@ func getWhereClauses(table string, f *filters.Filters) ([]string, []interface{})
 	return clauses, values
 }
 
+const DefaultMaxItems = 100
+
 func getLimit(f Filterable) string {
-	if f, ok := f.(*filters.Filters); ok {
-		if f.MaxItems == 0 {
-			return ""
-		}
-		limit := fmt.Sprintf(" LIMIT %d", f.MaxItems)
-		if f.CurPage > 0 {
-			return fmt.Sprintf("%s OFFSET %d", limit, f.MaxItems*(int(f.CurPage)-1))
-		}
+	ff, ok := f.(*filters.Filters)
+	if !ok {
+		return ""
 	}
-	return ""
+	if ff.MaxItems == 0 {
+		ff.MaxItems = DefaultMaxItems
+	}
+	limit := fmt.Sprintf(" LIMIT %d", ff.MaxItems)
+	if ff.CurPage == 0 {
+		return limit
+	}
+	return fmt.Sprintf("%s OFFSET %d", limit, ff.MaxItems*(int(ff.CurPage)-1))
 }
