@@ -14,7 +14,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -178,7 +177,7 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 	if it != nil && it.Count() == 1 && f.IsItemIRI() {
 		return it.Collection().First(), nil
 	}
-	return filters.PaginateCollection(it), nil
+	return PaginateCollection(it), nil
 }
 
 var (
@@ -1068,9 +1067,6 @@ func postProcessCollection(items vocab.ItemCollection) vocab.WithCollectionFn {
 func postProcessOrderedCollection(items vocab.ItemCollection) vocab.WithOrderedCollectionFn {
 	return func(col *vocab.OrderedCollection) error {
 		col.OrderedItems = items
-		sort.Slice(col.OrderedItems, func(i, j int) bool {
-			return vocab.ItemOrderTimestamp(col.OrderedItems[i], col.OrderedItems[j])
-		})
 		if col.TotalItems == 0 {
 			col.TotalItems = col.OrderedItems.Count()
 		}

@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"fmt"
+	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	vocab "github.com/go-ap/activitypub"
@@ -263,4 +265,261 @@ func getPagination(f Filterable, clauses *[]string, values *[]any) string {
 		*clauses = append(*clauses, fmt.Sprintf("COALESCE(raw->>'deleted', updated, published) > (select COALESCE(raw->>'deleted', updated, published) from %s where iri = ?)", table))
 	}
 	return limit
+}
+
+// PaginateCollection is a function that populates the received collection
+func PaginateCollection(it vocab.Item) vocab.Item {
+	if vocab.IsNil(it) {
+		return it
+	}
+
+	col, prevIRI, nextIRI := collectionPageFromItem(it)
+	if vocab.IsNil(col) {
+		return it
+	}
+	if vocab.IsItemCollection(col) {
+		return col
+	}
+
+	partOfIRI := it.GetID()
+	firstIRI := partOfIRI
+	if u, err := it.GetLink().URL(); err == nil {
+		q := u.Query()
+		for k := range q {
+			if k == keyMaxItems || k == keyAfter || k == keyBefore {
+				q.Del(k)
+			}
+		}
+		partOfIRI = vocab.IRI(u.String())
+		if !q.Has(keyMaxItems) {
+			q.Set(keyMaxItems, strconv.Itoa(DefaultMaxItems))
+		}
+		u.RawQuery = q.Encode()
+		firstIRI = vocab.IRI(u.String())
+	}
+
+	switch col.GetType() {
+	case vocab.OrderedCollectionType:
+		_ = vocab.OnOrderedCollection(col, func(c *vocab.OrderedCollection) error {
+			c.First = firstIRI
+			return nil
+		})
+	case vocab.OrderedCollectionPageType:
+		_ = vocab.OnOrderedCollectionPage(col, func(c *vocab.OrderedCollectionPage) error {
+			c.PartOf = partOfIRI
+			c.First = firstIRI
+			if !nextIRI.GetLink().Equals(firstIRI, true) {
+				c.Next = nextIRI
+			}
+			if !prevIRI.GetLink().Equals(firstIRI, true) {
+				c.Prev = prevIRI
+			}
+			return nil
+		})
+	case vocab.CollectionType:
+		_ = vocab.OnCollection(col, func(c *vocab.Collection) error {
+			c.First = firstIRI
+			return nil
+		})
+	case vocab.CollectionPageType:
+		_ = vocab.OnCollectionPage(col, func(c *vocab.CollectionPage) error {
+			c.PartOf = partOfIRI
+			c.First = firstIRI
+			if !nextIRI.GetLink().Equals(firstIRI, true) {
+				c.Next = nextIRI
+			}
+			if !prevIRI.GetLink().Equals(firstIRI, true) {
+				c.Prev = prevIRI
+			}
+			return nil
+		})
+	}
+
+	return col
+}
+
+func collectionPageFromItem(it vocab.Item) (vocab.Item, vocab.Item, vocab.Item) {
+	typ := it.GetType()
+
+	if !vocab.CollectionTypes.Contains(typ) {
+		return it, nil, nil
+	}
+
+	var prev url.Values
+	var next url.Values
+
+	var prevIRI vocab.IRI
+	var nextIRI vocab.IRI
+
+	shouldBePage := strings.Contains(it.GetLink().String(), keyMaxItems)
+
+	switch typ {
+	case vocab.OrderedCollectionPageType:
+		_ = vocab.OnOrderedCollectionPage(it, func(new *vocab.OrderedCollectionPage) error {
+			new.OrderedItems, prev, next = filterCollection(new.Collection())
+			if len(prev) > 0 {
+				prevIRI = getURL(it.GetLink(), prev)
+			}
+			if len(next) > 0 {
+				nextIRI = getURL(it.GetLink(), next)
+			}
+			return nil
+		})
+	case vocab.CollectionPageType:
+		_ = vocab.OnCollectionPage(it, func(new *vocab.CollectionPage) error {
+			new.Items, prev, next = filterCollection(new.Collection())
+			if len(prev) > 0 {
+				prevIRI = getURL(it.GetLink(), prev)
+			}
+			if len(next) > 0 {
+				nextIRI = getURL(it.GetLink(), next)
+			}
+			return nil
+		})
+	case vocab.OrderedCollectionType:
+		if shouldBePage {
+			result := new(vocab.OrderedCollectionPage)
+			old, _ := it.(*vocab.OrderedCollection)
+			err := vocab.OnOrderedCollection(result, func(new *vocab.OrderedCollection) error {
+				_, err := vocab.CopyOrderedCollectionProperties(new, old)
+				new.Type = vocab.OrderedCollectionPageType
+				new.OrderedItems, prev, next = filterCollection(new.Collection())
+				if len(prev) > 0 {
+					prevIRI = getURL(it.GetLink(), prev)
+				}
+				if len(next) > 0 {
+					nextIRI = getURL(it.GetLink(), next)
+				}
+				return err
+			})
+			if err == nil {
+				it = result
+			}
+		} else {
+			_ = vocab.OnOrderedCollection(it, func(new *vocab.OrderedCollection) error {
+				new.OrderedItems, prev, next = filterCollection(new.Collection())
+				if len(next) > 0 {
+					new.First = getURL(it.GetLink(), next)
+				}
+				return nil
+			})
+		}
+	case vocab.CollectionType:
+		if shouldBePage {
+			result := new(vocab.CollectionPage)
+			old, _ := it.(*vocab.Collection)
+			err := vocab.OnCollection(result, func(new *vocab.Collection) error {
+				_, err := vocab.CopyCollectionProperties(new, old)
+				new.Type = vocab.CollectionPageType
+				new.Items, prev, next = filterCollection(new.Collection())
+				if len(prev) > 0 {
+					prevIRI = getURL(it.GetLink(), prev)
+				}
+				if len(next) > 0 {
+					nextIRI = getURL(it.GetLink(), next)
+				}
+				return err
+			})
+			if err == nil {
+				it = result
+			}
+		} else {
+			_ = vocab.OnCollection(it, func(new *vocab.Collection) error {
+				new.Items, prev, next = filterCollection(new.Collection())
+				if len(next) > 0 {
+					new.First = getURL(it.GetLink(), next)
+				}
+				return nil
+			})
+		}
+	case vocab.CollectionOfItems:
+		_ = vocab.OnItemCollection(it, func(col *vocab.ItemCollection) error {
+			it, _, _ = filterCollection(*col)
+			return nil
+		})
+		return it, nil, nil
+	}
+
+	return it, prevIRI, nextIRI
+}
+
+const (
+	keyAfter  = "after"
+	keyBefore = "before"
+
+	keyMaxItems = "maxItems"
+)
+
+func filterCollection(col vocab.ItemCollection) (vocab.ItemCollection, url.Values, url.Values) {
+	if len(col) == 0 {
+		return col, nil, nil
+	}
+
+	pp := url.Values{}
+	np := url.Values{}
+
+	fpEnd := len(col) - 1
+	if fpEnd > DefaultMaxItems {
+		fpEnd = DefaultMaxItems
+	}
+	bpEnd := 0
+	if len(col) > DefaultMaxItems {
+		bpEnd = (len(col) / DefaultMaxItems) * DefaultMaxItems
+	}
+
+	firstPage := col[0:fpEnd]
+	lastPage := col[bpEnd:]
+
+	if len(col) == 0 {
+		return col, pp, np
+	}
+	first := col.First()
+	if len(col) > DefaultMaxItems {
+		pp.Add(keyMaxItems, strconv.Itoa(DefaultMaxItems))
+		np.Add(keyMaxItems, strconv.Itoa(DefaultMaxItems))
+
+		onFirstPage := false
+		for _, top := range firstPage {
+			if onFirstPage = first.GetLink().Equals(top.GetLink(), true); onFirstPage {
+				break
+			}
+		}
+		if !onFirstPage {
+			pp.Add(keyBefore, first.GetLink().String())
+		} else {
+			pp = nil
+		}
+		if len(col) > 1 && len(col) > DefaultMaxItems+1 {
+			last := col[len(col)-1]
+			onLastPage := false
+			for _, bottom := range lastPage {
+				if onLastPage = last.GetLink().Equals(bottom.GetLink(), true); onLastPage {
+					break
+				}
+			}
+			if !onLastPage {
+				np.Add(keyAfter, last.GetLink().String())
+			} else {
+				np = nil
+			}
+		}
+	}
+	return col, pp, np
+}
+func getURL(i vocab.IRI, f url.Values) vocab.IRI {
+	if f == nil {
+		return i
+	}
+	if u, err := i.URL(); err == nil {
+		q := u.Query()
+		for k, v := range f {
+			q.Del(k)
+			for _, vv := range v {
+				q.Add(k, vv)
+			}
+		}
+		u.RawQuery = q.Encode()
+		i = vocab.IRI(u.String())
+	}
+	return i
 }
