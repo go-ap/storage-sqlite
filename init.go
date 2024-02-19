@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS actors (
   "preferred_username" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.preferredUsername')) VIRTUAL
 ) STRICT;
 -- CREATE INDEX actors_type ON actors(type);
+-- CREATE INDEX actors_name ON actors(name, preferred_username);
 -- CREATE INDEX actors_published ON actors(published);
 `
 
@@ -65,15 +66,20 @@ CREATE TABLE IF NOT EXISTS objects (
 
 	createCollectionsQuery = `
 CREATE TABLE IF NOT EXISTS collections (
-  "published" TEXT default CURRENT_TIMESTAMP,
   "raw" BLOB,
-  "items" BLOB,
-  "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint collections_key unique
+  "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint collections_key unique,
+  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
+  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
+  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
+  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
+  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
+  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
+  "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
+  "items" BLOB
 ) STRICT;
-
--- CREATE TRIGGER collections_updated_published AFTER UPDATE ON collections BEGIN
---   UPDATE collections SET published = strftime('%Y-%m-%dT%H:%M:%fZ') WHERE iri = old.iri;
--- END;`
+-- CREATE INDEX collections_type ON collections(type);
+-- CREATE INDEX collections_published ON collections(published);
+`
 
 	createMetaQuery = `
 CREATE TABLE IF NOT EXISTS meta (

@@ -391,8 +391,7 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
-	query := `INSERT INTO collections (raw, items) VALUES (?, ?) 
-		ON CONFLICT(iri) DO UPDATE SET raw = ?, items = ?;`
+	query := `INSERT INTO collections (raw, items) VALUES (?, ?) ON CONFLICT(iri) DO UPDATE SET raw = ?, items = ?;`
 	_, err = r.conn.Exec(query, raw, rawItems, raw, rawItems)
 	if err != nil {
 		r.errFn("query error: %s\n%s %#v", err, query, vocab.IRIs{c.GetLink()})
