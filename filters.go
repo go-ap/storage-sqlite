@@ -241,7 +241,7 @@ func getWhereClauses(table string, f *filters.Filters) ([]string, []interface{})
 
 const DefaultMaxItems = 100
 
-func getLimit(f Filterable) string {
+func getPagination(f Filterable, clauses *[]string, values *[]any) string {
 	ff, ok := f.(*filters.Filters)
 	if !ok {
 		return ""
@@ -250,8 +250,17 @@ func getLimit(f Filterable) string {
 		ff.MaxItems = DefaultMaxItems
 	}
 	limit := fmt.Sprintf(" LIMIT %d", ff.MaxItems)
-	if ff.CurPage == 0 {
-		return limit
+	if ff.CurPage > 0 {
+		return fmt.Sprintf("%s OFFSET %d", limit, ff.MaxItems*(int(ff.CurPage)-1))
 	}
-	return fmt.Sprintf("%s OFFSET %d", limit, ff.MaxItems*(int(ff.CurPage)-1))
+	table := getCollectionTableFromFilter(ff)
+	if len(ff.Next) > 0 {
+		*values = append(*values, ff.Next)
+		*clauses = append(*clauses, fmt.Sprintf("COALESCE(raw->>'deleted', updated, published) <= (select COALESCE(raw->>'deleted', updated, published) from %s where iri = ?)", table))
+	}
+	if len(ff.Prev) > 0 {
+		*values = append(*values, ff.Prev)
+		*clauses = append(*clauses, fmt.Sprintf("COALESCE(raw->>'deleted', updated, published) > (select COALESCE(raw->>'deleted', updated, published) from %s where iri = ?)", table))
+	}
+	return limit
 }

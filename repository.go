@@ -604,7 +604,8 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 
 	ret := make(vocab.ItemCollection, 0)
 
-	sel := fmt.Sprintf(`select iri, raw from (%s) %s order by published;`, strings.Join(selects, " UNION "), getLimit(f))
+	limit := getPagination(f, &selects, &params)
+	sel := fmt.Sprintf(`SELECT iri, raw FROM (%s) %s ORDER BY COALESCE(raw->>'deleted', updated,  published) DESC;`, strings.Join(selects, " UNION "), limit)
 	rows, err := conn.Query(sel, params...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -699,7 +700,8 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 	clauses, values := getWhereClauses(string(table), f)
 	ret := make(vocab.ItemCollection, 0)
 
-	sel := fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY published %s;", table, strings.Join(clauses, " AND "), getLimit(f))
+	limit := getPagination(f, &clauses, &values)
+	sel := fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY COALESCE(raw->>'deleted', updated, published) DESC %s;", table, strings.Join(clauses, " AND "), limit)
 	rows, err := conn.Query(sel, values...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
