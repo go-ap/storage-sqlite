@@ -171,11 +171,14 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 		return nil, err
 	}
 
-	ret, err := load(r, i, f)
-	if ret != nil && ret.Count() == 1 && f.IsItemIRI() {
-		return ret.Collection().First(), err
+	it, err := load(r, i, f)
+	if err != nil {
+		return nil, err
 	}
-	return ret, err
+	if it != nil && it.Count() == 1 && f.IsItemIRI() {
+		return it.Collection().First(), nil
+	}
+	return filters.PaginateCollection(it), nil
 }
 
 var (
@@ -636,7 +639,7 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 	ret = loadActorFirstLevelIRIProperties(r, ret, f)
 	ret = loadObjectFirstLevelIRIProperties(r, ret, f)
 	ret = runActivityFilters(r, ret, f)
-	ret = runObjectFilters(r, ret, f)
+	ret = runObjectFilters(ret, f)
 	return &ret, err
 }
 
@@ -739,11 +742,11 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 		ret = loadActivityFirstLevelIRIProperties(r, ret, f)
 		ret = runActivityFilters(r, ret, f)
 	}
-	ret = runObjectFilters(r, ret, f)
+	ret = runObjectFilters(ret, f)
 	return &ret, err
 }
 
-func runObjectFilters(r *repo, ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
+func runObjectFilters(ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
 	result := make(vocab.ItemCollection, 0)
 
 	for i, it := range ret {
@@ -1132,7 +1135,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 			*col = loadActivityFirstLevelIRIProperties(r, *col, f)
 			*col = runActivityFilters(r, *col, f)
 		}
-		*col = runObjectFilters(r, *col, f)
+		*col = runObjectFilters(*col, f)
 
 		if orderedCollectionTypes.Contains(res.GetType()) {
 			err = vocab.OnOrderedCollection(res, postProcessOrderedCollection(col.Collection()))
