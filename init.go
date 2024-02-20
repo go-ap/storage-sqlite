@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS actors (
   "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
   "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
-  "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
+  "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'))) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
   "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,
   "preferred_username" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.preferredUsername')) VIRTUAL
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS activities (
   "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
   "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
-  "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
+  "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'))) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
   "actor" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.actor')) VIRTUAL NOT NULL CONSTRAINT activities_actors_iri_fk REFERENCES actors (iri),
   "object" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.object')) VIRTUAL CONSTRAINT activities_objects_iri_fk REFERENCES objects (iri)
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS objects (
   "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
   "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
-  "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
+  "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'))) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
   "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,
   "summary" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.summary')) VIRTUAL,
