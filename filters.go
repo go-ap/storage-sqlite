@@ -258,11 +258,11 @@ func getPagination(f Filterable, clauses *[]string, values *[]any) string {
 	table := getCollectionTableFromFilter(ff)
 	if len(ff.Next) > 0 {
 		*values = append(*values, ff.Next)
-		*clauses = append(*clauses, fmt.Sprintf("COALESCE(raw->>'deleted', updated, published) <= (select COALESCE(raw->>'deleted', updated, published) from %s where iri = ?)", table))
+		*clauses = append(*clauses, fmt.Sprintf("updated <= (select updated from %s where iri = ?)", table))
 	}
 	if len(ff.Prev) > 0 {
 		*values = append(*values, ff.Prev)
-		*clauses = append(*clauses, fmt.Sprintf("COALESCE(raw->>'deleted', updated, published) > (select COALESCE(raw->>'deleted', updated, published) from %s where iri = ?)", table))
+		*clauses = append(*clauses, fmt.Sprintf("updated > (select updated from %s where iri = ?)", table))
 	}
 	return limit
 }
