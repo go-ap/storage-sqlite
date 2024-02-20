@@ -606,7 +606,7 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 
 	ret := make(vocab.ItemCollection, 0)
 
-	limit := getPagination(f, &selects, &params)
+	limit := getPagination(f, "", &selects, &params)
 	sel := fmt.Sprintf(`SELECT iri, raw FROM (%s) %s ORDER BY updated DESC;`, strings.Join(selects, " UNION "), limit)
 	rows, err := conn.Query(sel, params...)
 	if err != nil {
@@ -702,7 +702,7 @@ func loadFromOneTable(r *repo, table vocab.CollectionPath, f *filters.Filters) (
 	clauses, values := getWhereClauses(string(table), f)
 	ret := make(vocab.ItemCollection, 0)
 
-	limit := getPagination(f, &clauses, &values)
+	limit := getPagination(f, string(table), &clauses, &values)
 	sel := fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY updated DESC %s;", table, strings.Join(clauses, " AND "), limit)
 	rows, err := conn.Query(sel, values...)
 	if err != nil {
@@ -931,6 +931,7 @@ func loadPropertiesForActivity(r *repo) func(o *vocab.Activity) error {
 		return nil
 	}
 }
+
 func loadActivityFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
 	for _, it := range ret {
 		vocab.OnActivity(it, loadPropertiesForActivity(r))
@@ -1083,27 +1084,51 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 	conn := r.conn
 
 	var col vocab.Item
-	var items vocab.Item
 	var res vocab.CollectionInterface
 
 	var cIri vocab.IRI
-	var itemsRaw []byte
 	var raw []byte
 
 	table := getCollectionTypeFromIRI(iri)
+	selects := []string{"c.iri = ? "}
+	params := []any{iri}
 
 	var selWithItems string
 	if isStorageCollectionIRI(iri) {
-		selWithItems = fmt.Sprintf(`select c.iri, c.raw, json_group_array(json(act.raw)) from collections c
-		left join %s act where c.iri = ? group by c.iri;`, table)
+		limit := getPagination(f, "x", &selects, &params)
+		sel := `
+select c.iri,
+	json_patch(
+		json(c.raw),
+		json_object('orderedItems', json_group_array(json(x.raw)))
+	) raw 
+from collections c 
+	left join %s x where %s group by c.iri order by x.published desc %s;`
+		selWithItems = fmt.Sprintf(sel, table, strings.Join(selects, " AND "), limit)
 	} else {
-		selWithItems = fmt.Sprintf(`select iri, raw, items from (select c.iri iri, c.raw raw, json_group_array(json(act.raw)) items from collections c, json_each(c.items)
-		left join %s act on value = act.iri where c.iri = ?
-	union select c.iri iri, c.raw raw, c.items items from collections c where c.iri = ?) where iri is not null group by iri;`, table)
+		params = append(params, iri)
+		params = append(params, params...)
+		limit := getPagination(f, "x", &selects, &params)
+		where := strings.Join(selects, " AND ")
+		sq1 := fmt.Sprintf(`
+	select c.iri iri,
+		json_patch(
+			json(c.raw),
+			json_object('orderedItems', json_group_array(json(x.raw)))
+		) raw,
+		x.published published 
+	from collections c, json_each(c.items)
+		left join %s x on value = x.iri where %s
+`, table, where)
+
+		sq2 := fmt.Sprintf(`select c.iri iri, c.raw raw, c.published published from collections c where %s`, where)
+
+		sel := `select iri, raw from ( %s union %s ) where iri is not null group by iri order by published desc %s;`
+		selWithItems = fmt.Sprintf(sel, sq1, sq2, limit)
 	}
-	if err := conn.QueryRow(selWithItems, iri.String(), iri.String()).Scan(&cIri, &raw, &itemsRaw); err != nil {
+	if err := conn.QueryRow(selWithItems, params...).Scan(&cIri, &raw); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.NotFoundf("Unable to find collection %s", iri)
+			return nil, errors.NotFoundf("Unable to find items in collection %s", iri)
 		}
 		return nil, errors.Annotatef(err, "unable to run select for %s", iri)
 	}
@@ -1117,29 +1142,24 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 		return nil, errors.Newf("loaded item is not a valid Collection")
 	}
 
-	if items, err = vocab.UnmarshalJSON(itemsRaw); err != nil {
-		return nil, errors.Annotatef(err, "Collection items unmarshal error")
+	items := res.Collection()
+	if table == "actors" {
+		items = loadActorFirstLevelIRIProperties(r, items, f)
 	}
-	err = vocab.OnItemCollection(items, func(col *vocab.ItemCollection) error {
-		if table == "actors" {
-			*col = loadActorFirstLevelIRIProperties(r, *col, f)
-		}
-		if table == "objects" {
-			*col = loadObjectFirstLevelIRIProperties(r, *col, f)
-		}
-		if table == "activities" {
-			*col = loadActivityFirstLevelIRIProperties(r, *col, f)
-			*col = runActivityFilters(r, *col, f)
-		}
-		*col = runObjectFilters(*col, f)
+	if table == "objects" {
+		items = loadObjectFirstLevelIRIProperties(r, items, f)
+	}
+	if table == "activities" {
+		items = loadActivityFirstLevelIRIProperties(r, items, f)
+		items = runActivityFilters(r, items, f)
+	}
+	items = runObjectFilters(items, f)
 
-		if orderedCollectionTypes.Contains(res.GetType()) {
-			err = vocab.OnOrderedCollection(res, postProcessOrderedCollection(col.Collection()))
-		} else if collectionTypes.Contains(res.GetType()) {
-			err = vocab.OnCollection(res, postProcessCollection(col.Collection()))
-		}
-		return err
-	})
+	if orderedCollectionTypes.Contains(res.GetType()) {
+		err = vocab.OnOrderedCollection(res, postProcessOrderedCollection(items))
+	} else if collectionTypes.Contains(res.GetType()) {
+		err = vocab.OnCollection(res, postProcessCollection(items))
+	}
 	return res, err
 }
 

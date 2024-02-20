@@ -132,6 +132,7 @@ func Test_repo_Load(t *testing.T) {
 				ID:         "https://example.com/activities",
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 3,
+				First:      vocab.IRI("https://example.com/activities?maxItems=100"),
 				OrderedItems: vocab.ItemCollection{
 					&vocab.Like{ID: "https://example.com/activities/122", Type: vocab.LikeType, Actor: &rootActor},
 					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: &rootActor},
@@ -190,6 +191,7 @@ func Test_repo_Load(t *testing.T) {
 			want: &vocab.OrderedCollection{
 				ID:         "https://example.com/actors/jdoe/outbox",
 				Type:       vocab.OrderedCollectionType,
+				First:      vocab.IRI("https://example.com/actors/jdoe/outbox?maxItems=100"),
 				TotalItems: 2,
 				OrderedItems: vocab.ItemCollection{
 					&vocab.Like{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: &jDoeActor},
@@ -210,6 +212,7 @@ func Test_repo_Load(t *testing.T) {
 				ID:         "https://example.com/actors/jdoe/outbox?type=Create",
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 2,
+				First:      vocab.IRI("https://example.com/actors/jdoe/outbox?type=Create&maxItems=100"),
 				OrderedItems: vocab.ItemCollection{
 					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jDoeActor},
 				},
@@ -229,7 +232,7 @@ func Test_repo_Load(t *testing.T) {
 			got, err := r.Load(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 
-			be.DeepEqual(t, tt.want, got)
+			be.True(t, vocab.ItemsEqual(tt.want, got))
 		})
 	}
 }

@@ -243,7 +243,7 @@ func getWhereClauses(table string, f *filters.Filters) ([]string, []interface{})
 
 const DefaultMaxItems = 100
 
-func getPagination(f Filterable, clauses *[]string, values *[]any) string {
+func getPagination(f Filterable, alias string, clauses *[]string, values *[]any) string {
 	ff, ok := f.(*filters.Filters)
 	if !ok {
 		return ""
@@ -258,11 +258,11 @@ func getPagination(f Filterable, clauses *[]string, values *[]any) string {
 	table := getCollectionTableFromFilter(ff)
 	if len(ff.Next) > 0 {
 		*values = append(*values, ff.Next)
-		*clauses = append(*clauses, fmt.Sprintf("updated <= (select updated from %s where iri = ?)", table))
+		*clauses = append(*clauses, fmt.Sprintf("%s.published < (select published from %s where iri = ?)", alias, table))
 	}
 	if len(ff.Prev) > 0 {
 		*values = append(*values, ff.Prev)
-		*clauses = append(*clauses, fmt.Sprintf("updated > (select updated from %s where iri = ?)", table))
+		*clauses = append(*clauses, fmt.Sprintf("%s.published > (select published from %s where iri = ?)", alias, table))
 	}
 	return limit
 }
