@@ -231,10 +231,13 @@ func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.Collection
 	})
 
 	raw, err := vocab.MarshalJSON(col)
-	ins := "INSERT OR REPLACE INTO collections (raw, items) VALUES (?, ?);"
-	_, err = r.conn.Exec(ins, raw, emptyCol)
 	if err != nil {
-		r.errFn("query error: %s\n%s\n%#v", err, ins)
+		r.errFn("unable to marshal collection %s: %s", col.GetLink(), err)
+		return col, errors.Annotatef(err, "unable to save Collection")
+	}
+	ins := "INSERT OR REPLACE INTO collections (raw, items) VALUES (?, ?);"
+	if _, err = r.conn.Exec(ins, raw, emptyCol); err != nil {
+		r.errFn("query error when creating %s: %s\n%s", col.GetLink(), err, ins)
 		return col, errors.Annotatef(err, "unable to save Collection")
 	}
 
