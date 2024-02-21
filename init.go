@@ -16,9 +16,10 @@ CREATE TABLE IF NOT EXISTS actors (
   "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,
   "preferred_username" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.preferredUsername')) VIRTUAL
 ) STRICT;
--- CREATE INDEX actors_type ON actors(type);
--- CREATE INDEX actors_name ON actors(name, preferred_username);
--- CREATE INDEX actors_published ON actors(published);
+CREATE INDEX actors_type ON actors(type);
+CREATE INDEX actors_name ON actors(name, preferred_username);
+CREATE INDEX actors_published ON actors(published);
+CREATE INDEX actors_updated ON actors(updated);
 `
 
 	createActivitiesQuery = `
@@ -36,10 +37,11 @@ CREATE TABLE IF NOT EXISTS activities (
   "actor" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.actor')) VIRTUAL NOT NULL CONSTRAINT activities_actors_iri_fk REFERENCES actors (iri),
   "object" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.object')) VIRTUAL CONSTRAINT activities_objects_iri_fk REFERENCES objects (iri)
 ) STRICT;
--- CREATE INDEX activities_type ON activities(type);
--- CREATE INDEX activities_actor ON activities(actor);
--- CREATE INDEX activities_object ON activities(object);
--- CREATE INDEX activities_published ON activities(published);
+CREATE INDEX activities_type ON activities(type);
+CREATE INDEX activities_actor ON activities(actor);
+CREATE INDEX activities_object ON activities(object);
+CREATE INDEX activities_published ON activities(published);
+CREATE INDEX activities_updated ON activities(updated);
 `
 
 	createObjectsQuery = `
@@ -58,10 +60,11 @@ CREATE TABLE IF NOT EXISTS objects (
   "summary" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.summary')) VIRTUAL,
   "content" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.content')) VIRTUAL
 ) STRICT;
--- CREATE INDEX objects_type ON objects(type);
--- CREATE INDEX objects_name ON objects(name);
--- CREATE INDEX objects_content ON objects(content);
--- CREATE INDEX objects_published ON objects(published);
+CREATE INDEX objects_type ON objects(type);
+CREATE INDEX objects_name ON objects(name);
+CREATE INDEX objects_content ON objects(content);
+CREATE INDEX objects_published ON objects(published);
+CREATE INDEX objects_updated ON objects(updated);
 `
 
 	createCollectionsQuery = `
@@ -77,8 +80,9 @@ CREATE TABLE IF NOT EXISTS collections (
   "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
   "items" BLOB
 ) STRICT;
--- CREATE INDEX collections_type ON collections(type);
--- CREATE INDEX collections_published ON collections(published);
+CREATE INDEX collections_type ON collections(type);
+CREATE INDEX collections_published ON collections(published);
+CREATE INDEX collections_updated ON collections(updated);
 `
 
 	createMetaQuery = `
