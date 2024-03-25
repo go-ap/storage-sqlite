@@ -3,17 +3,17 @@ module github.com/go-ap/storage-sqlite
 go 1.18
 
 require (
-	github.com/carlmjohnson/be v0.23.1
+	github.com/carlmjohnson/be v0.23.2
 	github.com/go-ap/activitypub v0.0.0-20240324143732-70ec96f244e6
 	github.com/go-ap/cache v0.0.0-20240324143953-1247d54db1bc
 	github.com/go-ap/errors v0.0.0-20240304112515-6077fa9c17b0
-	github.com/go-ap/filters v0.0.0-20240324144020-fa2c80e401ec
+	github.com/go-ap/filters v0.0.0-20240325123954-6b5f402749f3
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
-	github.com/go-ap/processing v0.0.0-20240324144257-a1df6e3b6bdf
+	github.com/go-ap/processing v0.0.0-20240325125404-cc52c350c92e
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/openshift/osin v1.0.1
 	golang.org/x/crypto v0.21.0
-	modernc.org/sqlite v1.29.3
+	modernc.org/sqlite v1.29.5
 )
 
 require (
@@ -35,14 +35,13 @@ require (
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/rs/zerolog v1.32.0 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
-	golang.org/x/mod v0.15.0 // indirect
 	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	modernc.org/gc/v3 v3.0.0-20240304020402-f0dba7c97c2b // indirect
-	modernc.org/libc v1.41.0 // indirect
+	modernc.org/libc v1.47.0 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.7.2 // indirect
 	modernc.org/strutil v1.2.0 // indirect

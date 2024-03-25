@@ -164,6 +164,7 @@ func errClientNotFound(err error) error {
 	}
 	return errors.NewNotFound(err, "Client could not be found")
 }
+
 func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error) {
 	rows, err := conn.QueryContext(ctx, getClientSQL, id)
 	if err != nil {
