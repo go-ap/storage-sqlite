@@ -1,8 +1,6 @@
 module github.com/go-ap/storage-sqlite
 
-go 1.22.0
-
-toolchain go1.23.1
+go 1.23
 
 require (
 	github.com/carlmjohnson/be v0.23.2
