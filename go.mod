@@ -9,7 +9,7 @@ require (
 	github.com/go-ap/errors v0.0.0-20240910140019-1e9d33cc1568
 	github.com/go-ap/filters v0.0.0-20240929110425-9d328f7c1fbd
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
-	github.com/go-ap/processing v0.0.0-20241018095437-e0a1885ab827
+	github.com/go-ap/processing v0.0.0-20241026132323-dc2f7dbd0551
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.28.0
@@ -17,12 +17,12 @@ require (
 )
 
 require (
-	git.sr.ht/~mariusor/cache v0.0.0-20241016131150-deab9d0394c9 // indirect
+	git.sr.ht/~mariusor/cache v0.0.0-20241026131931-1ae5432a2760 // indirect
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
 	git.sr.ht/~mariusor/lw v0.0.0-20240906100438-00d2184b2120 // indirect
 	git.sr.ht/~mariusor/ssm v0.0.0-20240811085540-34f24cac52b7 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-ap/client v0.0.0-20241018095317-40afc0dd1456 // indirect
+	github.com/go-ap/client v0.0.0-20241026132150-54b112a76f19 // indirect
 	github.com/go-chi/chi/v5 v5.1.0 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
