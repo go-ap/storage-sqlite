@@ -4,12 +4,12 @@ go 1.23
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20240910141749-b4b8c8aa484c
-	github.com/go-ap/cache v0.0.0-20240910141827-94f8ac1a9133
+	github.com/go-ap/activitypub v0.0.0-20241101101514-bc5248bb8442
+	github.com/go-ap/cache v0.0.0-20241101102908-c27eb5027385
 	github.com/go-ap/errors v0.0.0-20240910140019-1e9d33cc1568
-	github.com/go-ap/filters v0.0.0-20241027120602-54d8e1989499
+	github.com/go-ap/filters v0.0.0-20241101102957-043fbc95e1f8
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
-	github.com/go-ap/processing v0.0.0-20241027124317-ec1ffe74c70f
+	github.com/go-ap/processing v0.0.0-20241101110251-5248de081767
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.28.0
@@ -22,7 +22,7 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20240906100438-00d2184b2120 // indirect
 	git.sr.ht/~mariusor/ssm v0.0.0-20240811085540-34f24cac52b7 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-ap/client v0.0.0-20241026132150-54b112a76f19 // indirect
+	github.com/go-ap/client v0.0.0-20241101103023-9c19dcb624b3 // indirect
 	github.com/go-chi/chi/v5 v5.1.0 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
