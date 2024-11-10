@@ -7,9 +7,9 @@ require (
 	github.com/go-ap/activitypub v0.0.0-20241104140659-be99a725f9d5
 	github.com/go-ap/cache v0.0.0-20241104141048-912618952f30
 	github.com/go-ap/errors v0.0.0-20240910140019-1e9d33cc1568
-	github.com/go-ap/filters v0.0.0-20241109085752-e9794c634f69
+	github.com/go-ap/filters v0.0.0-20241110174345-2802456d0c02
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
-	github.com/go-ap/processing v0.0.0-20241109090447-d09d3e143043
+	github.com/go-ap/processing v0.0.0-20241110174821-a01379c6c51b
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.29.0
