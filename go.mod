@@ -4,12 +4,12 @@ go 1.23
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20241123145931-b72f8292c65b
-	github.com/go-ap/cache v0.0.0-20241123150045-5ee1d68664a4
+	github.com/go-ap/activitypub v0.0.0-20241124171425-a40ea88b2b60
+	github.com/go-ap/cache v0.0.0-20241124171712-276b1115f907
 	github.com/go-ap/errors v0.0.0-20240910140019-1e9d33cc1568
-	github.com/go-ap/filters v0.0.0-20241123185521-adc45b30dfb3
+	github.com/go-ap/filters v0.0.0-20241124171755-74a8e212382e
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
-	github.com/go-ap/processing v0.0.0-20241123185921-294fb9c9b985
+	github.com/go-ap/processing v0.0.0-20241124172506-e01e280f90d5
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.29.0
@@ -25,7 +25,7 @@ require (
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
 	github.com/bits-and-blooms/bitset v1.16.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-ap/client v0.0.0-20241123150455-030e6d4f1054 // indirect
+	github.com/go-ap/client v0.0.0-20241124171814-fdaae75e78ba // indirect
 	github.com/go-chi/chi/v5 v5.1.0 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
