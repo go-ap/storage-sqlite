@@ -95,10 +95,10 @@ func (r *repo) Reset() {
 		"refresh",
 	}
 
-	r.Open()
+	_ = r.Open()
 	defer r.close()
 
 	for _, table := range tables {
-		r.conn.Exec(fmt.Sprintf("DELETE FROM %s;", table))
+		_, _ = r.conn.Exec(fmt.Sprintf("DELETE FROM %s;", table))
 	}
 }

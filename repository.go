@@ -212,24 +212,6 @@ func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface,
 }
 
 func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
-	published := time.Now().UTC()
-	_ = vocab.OnCollection(col, func(c *vocab.Collection) error {
-		if !c.Published.IsZero() {
-			published = c.Published
-		} else {
-			c.Published = published
-		}
-		return nil
-	})
-	_ = vocab.OnOrderedCollection(col, func(c *vocab.OrderedCollection) error {
-		if !c.Published.IsZero() {
-			published = c.Published
-		} else {
-			c.Published = published
-		}
-		return nil
-	})
-
 	raw, err := vocab.MarshalJSON(col)
 	if err != nil {
 		r.errFn("unable to marshal collection %s: %s", col.GetLink(), err)
@@ -260,6 +242,7 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 	defer rows.Close()
 
 	var c vocab.Item
+	var items vocab.ItemCollection
 	for rows.Next() {
 		var iri string
 		var raw []byte
@@ -273,39 +256,45 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 		if err != nil {
 			return errors.Annotatef(err, "unable to unmarshal Collection")
 		}
+		if err = jsonld.Unmarshal(itemsRaw, &items); err != nil {
+			return errors.Annotatef(err, "unable to unmarshal Collection items")
+		}
 	}
 
 	if c == nil {
 		return errors.NotFoundf("not found Collection %s", col.GetLink())
 	}
-	allItems := make(vocab.IRIs, 0)
-	err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
-		col.Updated = time.Now().UTC()
-		col.OrderedItems.Remove(it)
-		return nil
-	})
-	if err != nil {
-		return errors.Annotatef(err, "unable to update Collection")
-	}
-	allItems = append(allItems, it.GetLink())
 
 	raw, err := vocab.MarshalJSON(c)
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
-	items, err := vocab.MarshalJSON(allItems)
+	rawItems, err := vocab.MarshalJSON(items)
 	if err != nil {
-		return errors.Annotatef(err, "unable to marshal Collection items")
+		return errors.Annotatef(err, "unable to marshal Collection rawItems")
 	}
 
 	query := "UPDATE collections SET raw = ?, items = ? WHERE iri = ?;"
-	_, err = r.conn.Exec(query, raw, items, c.GetLink())
+	_, err = r.conn.Exec(query, raw, rawItems, c.GetLink())
 	if err != nil {
 		r.errFn("query error: %s\n%s\n%s", err, query, c.GetLink())
 		return errors.Annotatef(err, "query error")
 	}
 
 	return nil
+}
+
+func (r *repo) exec(query string, args ...any) (sql.Result, error) {
+	if r.conn == nil {
+		return nil, errors.Newf("nil sql connection")
+	}
+	return r.conn.Exec(query, args...)
+}
+func (r *repo) queryRow(query string, args ...any) *sql.Row {
+	if r.conn == nil {
+		return &sql.Row{}
+	}
+	return r.conn.QueryRow(query, args...)
 }
 
 // RemoveFrom
@@ -321,9 +310,6 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	if vocab.IsNil(it) {
 		return nil
 	}
-	if r.conn == nil {
-		return errors.Newf("nil sql connection")
-	}
 
 	var c vocab.Item
 	var items vocab.IRIs
@@ -333,11 +319,11 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	var itemsRaw []byte
 
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
-	if err := r.conn.QueryRow(colSel, col.GetLink()).Scan(&iri, &raw, &itemsRaw); err != nil {
+	if err := r.queryRow(colSel, col.GetLink()).Scan(&iri, &raw, &itemsRaw); err != nil {
 		r.logFn("unable to load collection object for %s: %s", col, err.Error())
 		if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col) || isStorageCollectionIRI(col)) {
 			// NOTE(marius): this creates blocked/ignored collections if they don't exist
-			if c, err = r.createCollection(newOrderedCollection(col.GetLink())); err != nil {
+			if c, err = r.createCollection(createCollection(col.GetLink(), nil)); err != nil {
 				r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
 			}
 			items = make(vocab.IRIs, 0)
@@ -351,7 +337,6 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 			return errors.Annotatef(err, "unable to unmarshal Collection items")
 		}
 	}
-
 	if c == nil {
 		return errors.NotFoundf("not found Collection %s", col.GetLink())
 	}
@@ -359,19 +344,16 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	err := vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
 		col.Updated = time.Now().UTC()
 		for _, cit := range col.OrderedItems {
-			items = append(items, cit.GetLink())
+			_ = items.Append(cit.GetLink())
 		}
 		return nil
 	})
 	if err != nil {
 		return errors.Annotatef(err, "unable to update Collection")
 	}
-	if !isStorageCollectionIRI(col) {
-		// NOTE(marius): for storage collections (objects, activities, actors), we don't need
-		// to save the items in the collection items array.
-		// This covers the other collections.
-		items = append(items, it.GetLink())
-	}
+
+	initialCount := items.Count()
+	_ = items.Append(it.GetLink())
 
 	rawItems, err := vocab.MarshalJSON(items)
 	if err != nil {
@@ -380,13 +362,13 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 
 	if orderedCollectionTypes.Contains(c.GetType()) {
 		err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
-			col.TotalItems += 1
+			col.TotalItems += items.Count() - initialCount
 			col.OrderedItems = nil
 			return nil
 		})
 	} else if collectionTypes.Contains(c.GetType()) {
 		err = vocab.OnCollection(c, func(col *vocab.Collection) error {
-			col.TotalItems += 1
+			col.TotalItems += items.Count() - initialCount
 			col.Items = nil
 			return nil
 		})
@@ -397,7 +379,7 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
 	query := `INSERT INTO collections (raw, items) VALUES (?, ?) ON CONFLICT(iri) DO UPDATE SET raw = ?, items = ?;`
-	_, err = r.conn.Exec(query, raw, rawItems, raw, rawItems)
+	_, err = r.exec(query, raw, rawItems, raw, rawItems)
 	if err != nil {
 		r.errFn("query error: %s\n%s %#v", err, query, vocab.IRIs{c.GetLink()})
 		return errors.Annotatef(err, "query error")
@@ -638,6 +620,7 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 		}
 		ret = append(ret, it)
 	}
+
 	ret = loadActorFirstLevelIRIProperties(r, ret, f)
 	ret = loadObjectFirstLevelIRIProperties(r, ret, f)
 	ret = runActivityFilters(r, ret, f)
@@ -767,7 +750,7 @@ func objectFilter(ret vocab.ItemCollection) *filters.Filters {
 	f := new(filters.Filters)
 	f.ItemKey = make(filters.CompStrs, len(ret))
 	for i, it := range ret {
-		vocab.OnActivity(it, func(a *vocab.Activity) error {
+		_ = vocab.OnActivity(it, func(a *vocab.Activity) error {
 			f.ItemKey[i] = filters.StringEquals(a.Object.GetLink().String())
 			return nil
 		})
@@ -782,7 +765,7 @@ func actorFilter(ret vocab.ItemCollection) *filters.Filters {
 	f := new(filters.Filters)
 	f.ItemKey = make(filters.CompStrs, len(ret))
 	for i, it := range ret {
-		vocab.OnActivity(it, func(a *vocab.Activity) error {
+		_ = vocab.OnActivity(it, func(a *vocab.Activity) error {
 			f.ItemKey[i] = filters.StringEquals(a.Actor.GetLink().String())
 			return nil
 		})
@@ -937,7 +920,7 @@ func loadPropertiesForActivity(r *repo) func(o *vocab.Activity) error {
 
 func loadActivityFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
 	for _, it := range ret {
-		vocab.OnActivity(it, loadPropertiesForActivity(r))
+		_ = vocab.OnActivity(it, loadPropertiesForActivity(r))
 	}
 	return loadObjectFirstLevelIRIProperties(r, ret, f)
 }
@@ -948,7 +931,7 @@ func loadActorFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f *filt
 
 func loadObjectFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f *filters.Filters) vocab.ItemCollection {
 	for _, it := range ret {
-		vocab.OnObject(it, loadTagsForObject(r))
+		_ = vocab.OnObject(it, loadTagsForObject(r))
 	}
 	return ret
 }
@@ -1061,9 +1044,6 @@ func load(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface
 func postProcessCollection(items vocab.ItemCollection) vocab.WithCollectionFn {
 	return func(col *vocab.Collection) error {
 		col.Items = items
-		if col.TotalItems == 0 {
-			col.TotalItems = col.Items.Count()
-		}
 		return nil
 	}
 }
@@ -1071,9 +1051,6 @@ func postProcessCollection(items vocab.ItemCollection) vocab.WithCollectionFn {
 func postProcessOrderedCollection(items vocab.ItemCollection) vocab.WithOrderedCollectionFn {
 	return func(col *vocab.OrderedCollection) error {
 		col.OrderedItems = items
-		if col.TotalItems == 0 {
-			col.TotalItems = col.OrderedItems.Count()
-		}
 		return nil
 	}
 }
@@ -1265,16 +1242,20 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 	return it, nil
 }
 
-func newOrderedCollection(colIRI vocab.IRI) vocab.CollectionInterface {
+func createCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInterface {
 	col := vocab.OrderedCollection{
 		ID:        colIRI,
 		Type:      vocab.OrderedCollectionType,
 		Published: time.Now().UTC(),
+		CC:        vocab.ItemCollection{vocab.PublicNS},
+	}
+	if !vocab.IsNil(owner) {
+		col.AttributedTo = owner.GetLink()
 	}
 	return &col
 }
 
-func createCollectionInTable(r *repo, it vocab.Item) (vocab.Item, error) {
+func createCollectionInTable(r *repo, it vocab.Item, owner vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, nil
 	}
@@ -1285,7 +1266,7 @@ func createCollectionInTable(r *repo, it vocab.Item) (vocab.Item, error) {
 		var err error
 		c, ok := it.(vocab.CollectionInterface)
 		if !ok {
-			c = newOrderedCollection(it.GetLink())
+			c = createCollection(it.GetLink(), owner)
 		}
 		it, err = r.createCollection(c)
 		if err != nil {
@@ -1302,19 +1283,19 @@ func createCollections(r *repo, it vocab.Item) error {
 		return nil
 	}
 	if vocab.ActorTypes.Contains(it.GetType()) {
-		vocab.OnActor(it, func(p *vocab.Actor) error {
-			p.Inbox, _ = createCollectionInTable(r, p.Inbox)
-			p.Outbox, _ = createCollectionInTable(r, p.Outbox)
-			p.Followers, _ = createCollectionInTable(r, p.Followers)
-			p.Following, _ = createCollectionInTable(r, p.Following)
-			p.Liked, _ = createCollectionInTable(r, p.Liked)
+		_ = vocab.OnActor(it, func(p *vocab.Actor) error {
+			p.Inbox, _ = createCollectionInTable(r, p.Inbox, p)
+			p.Outbox, _ = createCollectionInTable(r, p.Outbox, p)
+			p.Followers, _ = createCollectionInTable(r, p.Followers, p)
+			p.Following, _ = createCollectionInTable(r, p.Following, p)
+			p.Liked, _ = createCollectionInTable(r, p.Liked, p)
 			return nil
 		})
 	}
 	return vocab.OnObject(it, func(o *vocab.Object) error {
-		o.Replies, _ = createCollectionInTable(r, o.Replies)
-		o.Likes, _ = createCollectionInTable(r, o.Likes)
-		o.Shares, _ = createCollectionInTable(r, o.Shares)
+		o.Replies, _ = createCollectionInTable(r, o.Replies, o)
+		o.Likes, _ = createCollectionInTable(r, o.Likes, o)
+		o.Shares, _ = createCollectionInTable(r, o.Shares, o)
 		return nil
 	})
 }

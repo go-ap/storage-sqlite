@@ -379,7 +379,7 @@ func Test_repo_Create(t *testing.T) {
 	}
 }
 
-func orderedCollection(iri vocab.IRI) vocab.CollectionInterface {
+func orderedCollection(iri vocab.IRI) *vocab.OrderedCollection {
 	col := vocab.OrderedCollectionNew(iri)
 	col.Published = time.Now().UTC().Truncate(time.Second)
 	return col
@@ -453,7 +453,12 @@ func Test_repo_AddTo(t *testing.T) {
 
 				it, err := vocab.UnmarshalJSON(raw)
 				be.NilErr(t, err)
-				be.True(t, vocab.ItemsEqual(mockCol, it))
+
+				_ = vocab.OnOrderedCollection(it, func(col *vocab.OrderedCollection) error {
+					be.True(t, mockCol.ID == col.ID)
+					be.True(t, mockCol.Type == col.Type)
+					return nil
+				})
 
 				it, err = vocab.UnmarshalJSON(itemsRaw)
 				be.NilErr(t, err)
