@@ -18,16 +18,18 @@ import (
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/auth"
 	"github.com/go-ap/cache"
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
 	"github.com/go-ap/jsonld"
-	"github.com/go-ap/processing"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var encodeItemFn = vocab.MarshalJSON
 var decodeItemFn = vocab.UnmarshalJSON
+
+type Metadata = auth.Metadata
 
 type loggerFn func(string, ...interface{})
 
@@ -433,7 +435,7 @@ func (r *repo) PasswordSet(it vocab.Item, pw []byte) error {
 	}
 	m, _ := r.LoadMetadata(it.GetLink())
 	if m == nil {
-		m = new(processing.Metadata)
+		m = new(Metadata)
 	}
 	m.Pw = pw
 	return r.SaveMetadata(*m, it.GetLink())
@@ -452,14 +454,14 @@ func (r *repo) PasswordCheck(it vocab.Item, pw []byte) error {
 }
 
 // LoadMetadata
-func (r *repo) LoadMetadata(iri vocab.IRI) (*processing.Metadata, error) {
+func (r *repo) LoadMetadata(iri vocab.IRI) (*Metadata, error) {
 	err := r.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
 
-	m := new(processing.Metadata)
+	m := new(Metadata)
 	raw, err := loadMetadataFromTable(r.conn, iri)
 	if err != nil {
 		return nil, err
@@ -472,7 +474,7 @@ func (r *repo) LoadMetadata(iri vocab.IRI) (*processing.Metadata, error) {
 }
 
 // SaveMetadata
-func (r *repo) SaveMetadata(m processing.Metadata, iri vocab.IRI) error {
+func (r *repo) SaveMetadata(m Metadata, iri vocab.IRI) error {
 	err := r.Open()
 	if err != nil {
 		return err
@@ -1323,7 +1325,7 @@ func (r *repo) SaveKey(iri vocab.IRI, key crypto.PrivateKey) (vocab.Item, error)
 
 	m, _ := r.LoadMetadata(iri)
 	if m == nil {
-		m = new(processing.Metadata)
+		m = new(Metadata)
 	}
 	if m.PrivateKey != nil {
 		r.logFn("actor %s already has a private key", iri)
