@@ -1323,7 +1323,10 @@ func (r *repo) SaveKey(iri vocab.IRI, key crypto.PrivateKey) (vocab.Item, error)
 		return ob, errors.Newf("trying to generate keys for invalid ActivityPub object type: %s", typ)
 	}
 
-	m, _ := r.LoadMetadata(iri)
+	m, err := r.LoadMetadata(iri)
+	if err != nil && !errors.IsNotFound(err) {
+		return ob, err
+	}
 	if m == nil {
 		m = new(Metadata)
 	}
