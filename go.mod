@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/carlmjohnson/be v0.23.2
 	github.com/go-ap/activitypub v0.0.0-20250212090640-aeb6499ba581
-	github.com/go-ap/auth v0.0.0-20250401102814-b4287aa4189b
+	github.com/go-ap/auth v0.0.0-20250401105142-5b0d96ee4510
 	github.com/go-ap/cache v0.0.0-20250212092834-8063df8eb5ff
 	github.com/go-ap/errors v0.0.0-20250124135319-3da8adefd4a9
 	github.com/go-ap/filters v0.0.0-20250327124545-0df3f4a5cc88
