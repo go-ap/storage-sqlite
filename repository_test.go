@@ -229,6 +229,9 @@ func Test_repo_Load(t *testing.T) {
 				logFn: t.Logf,
 				errFn: t.Errorf,
 			}
+			_ = r.Open()
+			defer r.Close()
+
 			got, err := r.Load(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 
@@ -280,6 +283,8 @@ func Test_repo_Save(t *testing.T) {
 			path := saveMocks(t, base, tt.root)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
+			_ = r.Open()
+			defer r.Close()
 
 			got, err := r.Save(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
@@ -372,6 +377,9 @@ func Test_repo_Create(t *testing.T) {
 			path := saveMocks(t, base, tt.root)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
+			_ = r.Open()
+			defer r.Close()
+
 			got, err := r.Create(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 			be.True(t, vocab.ItemsEqual(tt.want, got))
@@ -421,6 +429,9 @@ func Test_repo_AddTo(t *testing.T) {
 			mockCol := orderedCollection(tt.args.col)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
+			_ = r.Open()
+			defer r.Close()
+
 			col, err := r.Create(mockCol)
 			be.NilErr(t, err)
 			be.Equal(t, tt.args.col, col.GetLink())
@@ -518,6 +529,9 @@ func Test_repo_Delete(t *testing.T) {
 			path := saveMocks(t, base, tt.root)
 
 			r := repo{path: path, logFn: t.Logf, errFn: t.Errorf}
+			_ = r.Open()
+			defer r.Close()
+
 			err := r.Delete(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 			if tt.arg == nil {

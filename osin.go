@@ -58,11 +58,6 @@ const (
 )
 
 func bootstrapOsin(r repo) error {
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
-
 	exec := func(conn *sql.DB, qRaw string, par ...any) error {
 		qSql := fmt.Sprintf(qRaw, par...)
 		r.logFn("Executing %s", stringClean(qSql))
@@ -127,10 +122,6 @@ const getClients = "SELECT code, secret, redirect_uri, extra FROM clients;"
 
 // ListClients
 func (r *repo) ListClients() ([]osin.Client, error) {
-	if err := r.Open(); err != nil {
-		return nil, err
-	}
-	defer r.Close()
 
 	result := make([]osin.Client, 0)
 
@@ -192,10 +183,6 @@ func (r *repo) GetClient(id string) (osin.Client, error) {
 	if id == "" {
 		return nil, errors.NotFoundf("Empty client id")
 	}
-	if err := r.Open(); err != nil {
-		return nil, err
-	}
-	defer r.Close()
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 
@@ -212,10 +199,6 @@ func (r *repo) UpdateClient(c osin.Client) error {
 	if c == nil {
 		return nilClientErr
 	}
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
 
 	data, err := assertToBytes(c.GetUserData())
 	if err != nil {
@@ -250,10 +233,6 @@ func (r *repo) CreateClient(c osin.Client) error {
 	if c == nil {
 		return nilClientErr
 	}
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
 
 	data, err := assertToBytes(c.GetUserData())
 	if err != nil {
@@ -283,11 +262,6 @@ const removeClient = "DELETE FROM clients WHERE code=?"
 
 // RemoveClient
 func (r *repo) RemoveClient(id string) error {
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
-
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	if _, err := r.conn.ExecContext(ctx, removeClient, id); err != nil {
 		r.errFn("Failed deleting client id %s: %+s", id, err)
@@ -308,10 +282,7 @@ func (r *repo) SaveAuthorize(data *osin.AuthorizeData) error {
 	if data == nil {
 		return errors.Newf("invalid nil authorize to save")
 	}
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
+
 	extra, err := assertToBytes(data.UserData)
 	if err != nil {
 		r.errFn("Authorize id %s: %+s", data.Client.GetId(), err)
@@ -384,10 +355,6 @@ func (r *repo) LoadAuthorize(code string) (*osin.AuthorizeData, error) {
 	if code == "" {
 		return nil, errors.Newf("Empty authorize code")
 	}
-	if err := r.Open(); err != nil {
-		return nil, err
-	}
-	defer r.Close()
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	return loadAuthorize(r.conn, ctx, code)
@@ -397,11 +364,6 @@ const removeAuthorize = "DELETE FROM authorize WHERE code=?"
 
 // RemoveAuthorize revokes or deletes the authorization code.
 func (r *repo) RemoveAuthorize(code string) error {
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
-
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	if _, err := r.conn.ExecContext(ctx, removeAuthorize, code); err != nil {
 		r.errFn("Failed deleting authorize data code %s: %+s", code, err)
@@ -434,10 +396,6 @@ func (r *repo) SaveAccess(data *osin.AccessData) error {
 		r.errFn("Authorize id %s: %+s", data.Client.GetId(), err)
 		return err
 	}
-	if err = r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
 
 	ctx, _ := context.WithTimeout(context.TODO(), defaultTimeout)
 	params := []interface{}{
@@ -529,10 +487,6 @@ func (r *repo) LoadAccess(code string) (*osin.AccessData, error) {
 	if code == "" {
 		return nil, errors.Newf("Empty access code")
 	}
-	if err := r.Open(); err != nil {
-		return nil, err
-	}
-	defer r.Close()
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	return loadAccess(r.conn, ctx, code)
@@ -542,11 +496,6 @@ const removeAccess = "DELETE FROM access WHERE token=?"
 
 // RemoveAccess revokes or deletes an AccessData.
 func (r *repo) RemoveAccess(code string) error {
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
-
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	_, err := r.conn.ExecContext(ctx, removeAccess, code)
 	if err != nil {
@@ -564,10 +513,6 @@ func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
 	if code == "" {
 		return nil, errors.Newf("Empty refresh code")
 	}
-	if err := r.Open(); err != nil {
-		return nil, err
-	}
-	defer r.Close()
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	var access sql.NullString
@@ -586,11 +531,6 @@ const removeRefresh = "DELETE FROM refresh WHERE token=?"
 
 // RemoveRefresh revokes or deletes refresh AccessData.
 func (r *repo) RemoveRefresh(code string) error {
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
-
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 
 	_, err := r.conn.ExecContext(ctx, removeRefresh, code)

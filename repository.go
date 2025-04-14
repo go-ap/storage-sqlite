@@ -162,11 +162,6 @@ func getCollectionTableFromFilter(f *filters.Filters) vocab.CollectionPath {
 
 // Load
 func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
-	if err := r.Open(); err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
 	f, err := filters.FiltersFromIRI(i)
 	if err != nil {
 		return nil, err
@@ -189,10 +184,6 @@ var (
 
 // Save
 func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
-	if err := r.Open(); err != nil {
-		return nil, err
-	}
-	defer r.Close()
 	return save(r, it)
 }
 
@@ -206,10 +197,6 @@ func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface,
 	if col.GetLink() == "" {
 		return col, nilItemIRIErr
 	}
-	if err := r.Open(); err != nil {
-		return col, err
-	}
-	defer r.Close()
 	return r.createCollection(col)
 }
 
@@ -301,10 +288,6 @@ func (r *repo) queryRow(query string, args ...any) *sql.Row {
 
 // RemoveFrom
 func (r *repo) RemoveFrom(col vocab.IRI, it vocab.Item) error {
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
 	return r.removeFrom(col, it)
 }
 
@@ -392,11 +375,6 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 
 // AddTo
 func (r *repo) AddTo(col vocab.IRI, it vocab.Item) error {
-	if err := r.Open(); err != nil {
-		return err
-	}
-	defer r.Close()
-
 	return r.addTo(col, it)
 }
 
@@ -404,11 +382,6 @@ func (r *repo) AddTo(col vocab.IRI, it vocab.Item) error {
 func (r *repo) Delete(it vocab.Item) error {
 	if vocab.IsNil(it) {
 		return nil
-	}
-	err := r.Open()
-	defer r.Close()
-	if err != nil {
-		return err
 	}
 
 	if it.IsCollection() {
@@ -455,12 +428,6 @@ func (r *repo) PasswordCheck(it vocab.Item, pw []byte) error {
 
 // LoadMetadata
 func (r *repo) LoadMetadata(iri vocab.IRI) (*Metadata, error) {
-	err := r.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
 	m := new(Metadata)
 	raw, err := loadMetadataFromTable(r.conn, iri)
 	if err != nil {
@@ -475,12 +442,6 @@ func (r *repo) LoadMetadata(iri vocab.IRI) (*Metadata, error) {
 
 // SaveMetadata
 func (r *repo) SaveMetadata(m Metadata, iri vocab.IRI) error {
-	err := r.Open()
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
 	entryBytes, err := encodeFn(m)
 	if err != nil {
 		return errors.Annotatef(err, "Could not marshal metadata")

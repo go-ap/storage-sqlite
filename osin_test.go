@@ -16,9 +16,10 @@ type initFn func(db *sql.DB) error
 func initializeOsinDb(t *testing.T, fns ...initFn) repo {
 	dbPath := filepath.Join(t.TempDir(), "storage.sqlite")
 	r := repo{path: dbPath, logFn: t.Logf, errFn: t.Errorf}
+	_ = r.Open()
+
 	be.NilErr(t, bootstrapOsin(r))
 
-	be.NilErr(t, r.Open())
 	for _, fn := range fns {
 		be.NilErr(t, fn(r.conn))
 	}
@@ -173,6 +174,8 @@ func Test_repo_ListClients(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := initializeOsinDb(t, tt.init...)
+			defer s.Close()
+
 			got, err := s.ListClients()
 			checkErrorsEqual(t, tt.err, err)
 			be.DeepEqual(t, tt.want, got)
