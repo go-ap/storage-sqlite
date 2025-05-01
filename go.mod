@@ -4,13 +4,13 @@ go 1.23.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20250409143848-7113328b1f3d
-	github.com/go-ap/auth v0.0.0-20250409144154-5b90f4f02389
-	github.com/go-ap/cache v0.0.0-20250409143941-46ead8c57c50
-	github.com/go-ap/errors v0.0.0-20250409143711-5686c11ae650
-	github.com/go-ap/filters v0.0.0-20250409144015-c6cbbadeefe4
+	github.com/go-ap/activitypub v0.0.0-20250501090939-71edba4a7137
+	github.com/go-ap/auth v0.0.0-20250501100000-44e4c972966d
+	github.com/go-ap/cache v0.0.0-20250501092828-99a2a24bfbfe
+	github.com/go-ap/errors v0.0.0-20250501090840-cd50c6a0a4e6
+	github.com/go-ap/filters v0.0.0-20250501095843-df5e7d7967ec
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
-	github.com/mattn/go-sqlite3 v1.14.27
+	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.37.0
 	modernc.org/sqlite v1.37.0
@@ -42,7 +42,7 @@ require (
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	modernc.org/libc v1.62.1 // indirect
+	modernc.org/libc v1.65.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.9.1 // indirect
+	modernc.org/memory v1.10.0 // indirect
 )
