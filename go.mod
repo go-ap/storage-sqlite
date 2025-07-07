@@ -4,10 +4,10 @@ go 1.23.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20250624113752-67e4989cab6d
-	github.com/go-ap/cache v0.0.0-20250624114002-22c47b1ed131
+	github.com/go-ap/activitypub v0.0.0-20250707121747-61ebb8da72cd
+	github.com/go-ap/cache v0.0.0-20250707121823-a03eabe94686
 	github.com/go-ap/errors v0.0.0-20250527110557-c8db454e53fd
-	github.com/go-ap/filters v0.0.0-20250624114123-8b0381a095ec
+	github.com/go-ap/filters v0.0.0-20250707122225-29d0a210d866
 	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
@@ -34,7 +34,7 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	modernc.org/libc v1.66.0 // indirect
+	modernc.org/libc v1.66.2 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
