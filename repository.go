@@ -87,7 +87,7 @@ func getCollectionTypeFromIRI(i vocab.IRI) vocab.CollectionPath {
 	if table := getCollectionTable(col); table != "" {
 		return table
 	}
-	return "actors"
+	return ""
 }
 
 func getCollectionTypeFromItem(it vocab.Item) vocab.CollectionPath {
@@ -478,7 +478,7 @@ func loadFromThreeTables(r *repo, f *filters.Filters) (vocab.CollectionInterface
 	ret := make(vocab.ItemCollection, 0)
 
 	limit := getPagination(f, "", &selects, &params)
-	sel := fmt.Sprintf(`SELECT iri, raw FROM (%s) %s ORDER BY updated DESC;`, strings.Join(selects, " UNION "), limit)
+	sel := fmt.Sprintf(`SELECT iri, raw FROM (%s) ORDER BY published DESC %s;`, strings.Join(selects, " UNION "), limit)
 	rows, err := conn.Query(sel, params...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -892,9 +892,14 @@ var orderedCollectionTypes = vocab.ActivityVocabularyTypes{vocab.OrderedCollecti
 var collectionTypes = vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vocab.CollectionType}
 
 func load(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface, error) {
-	table := getCollectionTypeFromIRI(iri)
+	var items vocab.CollectionInterface
+	var err error
 
-	items, err := loadFromOneTable(r, table, f)
+	if table := getCollectionTypeFromIRI(iri); table != "" {
+		items, err = loadFromOneTable(r, table, f)
+	} else {
+		items, err = loadFromThreeTables(r, f)
+	}
 	if err != nil {
 		return items, err
 	}
