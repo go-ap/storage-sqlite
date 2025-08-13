@@ -234,12 +234,17 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 		if err != nil {
 			return errors.Annotatef(err, "unable to unmarshal Collection")
 		}
-		if err = jsonld.Unmarshal(itemsRaw, &items); err != nil {
+		var itemCol vocab.Item
+		if itemCol, err = vocab.UnmarshalJSON(itemsRaw); err != nil {
 			return errors.Annotatef(err, "unable to unmarshal Collection items")
+		}
+		var ok bool
+		if items, ok = itemCol.(vocab.ItemCollection); !ok {
+			return errors.Annotatef(err, "unable to load Collection items")
 		}
 	}
 
-	if c == nil {
+	if vocab.IsNil(c) {
 		return errors.NotFoundf("not found Collection %s", col.GetLink())
 	}
 
@@ -247,7 +252,7 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
-	rawItems, err := vocab.MarshalJSON(items)
+	rawItems, err := vocab.MarshalJSON(items.IRIs())
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection rawItems")
 	}
