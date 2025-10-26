@@ -37,12 +37,20 @@ func New(c Config) (*repo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &repo{
+	rr := repo{
 		path:  p,
-		logFn: c.LogFn,
-		errFn: c.ErrFn,
+		logFn: defaultLogFn,
+		errFn: defaultLogFn,
 		cache: cache.New(c.CacheEnable),
-	}, nil
+	}
+
+	if c.LogFn != nil {
+		rr.logFn = c.LogFn
+	}
+	if c.ErrFn != nil {
+		rr.errFn = c.ErrFn
+	}
+	return &rr, nil
 }
 
 type repo struct {
@@ -684,7 +692,7 @@ func targetFilter(ret vocab.ItemCollection) *filters.Filters {
 func keepObject(f *filters.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
 	return func(act *vocab.Activity, ob vocab.Item) bool {
 		keep := false
-		if act.Object.GetLink().Equals(ob.GetLink(), false) {
+		if act.Object.GetLink().Equal(ob.GetLink(), false) {
 			act.Object = ob
 			keep = f.ItemsMatch(act.Object)
 		}
@@ -695,7 +703,7 @@ func keepObject(f *filters.Filters) func(act *vocab.Activity, ob vocab.Item) boo
 func keepActor(f *filters.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
 	return func(act *vocab.Activity, ob vocab.Item) bool {
 		var keep bool
-		if act.Actor.GetLink().Equals(ob.GetLink(), false) {
+		if act.Actor.GetLink().Equal(ob.GetLink(), false) {
 			act.Actor = ob
 			keep = f.Actor.ItemsMatch(act.Actor)
 		}
@@ -706,7 +714,7 @@ func keepActor(f *filters.Filters) func(act *vocab.Activity, ob vocab.Item) bool
 func keepTarget(f *filters.Filters) func(act *vocab.Activity, ob vocab.Item) bool {
 	return func(act *vocab.Activity, ob vocab.Item) bool {
 		var keep bool
-		if act.Target.GetLink().Equals(ob.GetLink(), false) {
+		if act.Target.GetLink().Equal(ob.GetLink(), false) {
 			act.Target = ob
 			keep = f.Target.ItemsMatch(act.Target)
 		}
@@ -845,7 +853,7 @@ func runActivityFilters(r *repo, ret vocab.ItemCollection, f *filters.Filters) v
 	for _, it := range ret {
 		keep := true
 		for _, iri := range toRemove {
-			if it.GetLink().Equals(iri, false) {
+			if it.GetLink().Equal(iri, false) {
 				keep = false
 			}
 		}
