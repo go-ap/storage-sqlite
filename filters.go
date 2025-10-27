@@ -308,10 +308,10 @@ func PaginateCollection(it vocab.Item) vocab.Item {
 		_ = vocab.OnOrderedCollectionPage(col, func(c *vocab.OrderedCollectionPage) error {
 			c.PartOf = partOfIRI
 			c.First = firstIRI
-			if !nextIRI.GetLink().Equal(firstIRI, true) {
+			if !nextIRI.GetLink().Equal(firstIRI) {
 				c.Next = nextIRI
 			}
-			if !prevIRI.GetLink().Equal(firstIRI, true) {
+			if !prevIRI.GetLink().Equal(firstIRI) {
 				c.Prev = prevIRI
 			}
 			return nil
@@ -325,10 +325,10 @@ func PaginateCollection(it vocab.Item) vocab.Item {
 		_ = vocab.OnCollectionPage(col, func(c *vocab.CollectionPage) error {
 			c.PartOf = partOfIRI
 			c.First = firstIRI
-			if !nextIRI.GetLink().Equal(firstIRI, true) {
+			if !nextIRI.GetLink().Equal(firstIRI) {
 				c.Next = nextIRI
 			}
-			if !prevIRI.GetLink().Equal(firstIRI, true) {
+			if !prevIRI.GetLink().Equal(firstIRI) {
 				c.Prev = prevIRI
 			}
 			return nil
@@ -480,7 +480,7 @@ func filterCollection(col vocab.ItemCollection) (vocab.ItemCollection, url.Value
 
 		onFirstPage := false
 		for _, top := range firstPage {
-			if onFirstPage = first.GetLink().Equal(top.GetLink(), true); onFirstPage {
+			if onFirstPage = first.GetLink().Equals(top.GetLink(), true); onFirstPage {
 				break
 			}
 		}
@@ -493,7 +493,7 @@ func filterCollection(col vocab.ItemCollection) (vocab.ItemCollection, url.Value
 			last := col[len(col)-1]
 			onLastPage := false
 			for _, bottom := range lastPage {
-				if onLastPage = last.GetLink().Equal(bottom.GetLink(), true); onLastPage {
+				if onLastPage = last.GetLink().Equals(bottom.GetLink(), true); onLastPage {
 					break
 				}
 			}

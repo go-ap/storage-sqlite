@@ -1,13 +1,13 @@
 module github.com/go-ap/storage-sqlite
 
-go 1.24.0
+go 1.25
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20251026152536-abe2dfa8e494
-	github.com/go-ap/cache v0.0.0-20251026153723-236f2a4d86e4
+	github.com/go-ap/activitypub v0.0.0-20251027164102-d8bc432e9bc1
+	github.com/go-ap/cache v0.0.0-20251027164232-9b6c110a4d45
 	github.com/go-ap/errors v0.0.0-20250905102357-4480b47a00c4
-	github.com/go-ap/filters v0.0.0-20251026153834-ff24f27629ef
+	github.com/go-ap/filters v0.0.0-20251027164246-c84e70ece93e
 	github.com/go-ap/jsonld v0.0.0-20250905102310-8480b0fe24d9
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f

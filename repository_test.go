@@ -558,7 +558,7 @@ func Test_repo_Delete(t *testing.T) {
 				it, err := vocab.UnmarshalJSON([]byte(mock))
 				be.NilErr(t, err)
 				be.Nonzero(t, it)
-				if it.GetLink().Equal(tt.arg.GetLink(), true) {
+				if it.GetLink().Equal(tt.arg.GetLink()) {
 					continue
 				}
 				_ = mocks.Append(it)
@@ -575,7 +575,7 @@ func Test_repo_Delete(t *testing.T) {
 				be.NilErr(t, err)
 
 				it, _ := vocab.UnmarshalJSON(ob)
-				be.False(t, it.GetLink().Equal(tt.arg.GetLink(), true))
+				be.False(t, it.GetLink().Equal(tt.arg.GetLink()))
 				be.True(t, mocks.Contains(it))
 			}
 		})
