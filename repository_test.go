@@ -10,6 +10,7 @@ import (
 	"github.com/carlmjohnson/be"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
+	"github.com/google/go-cmp/cmp"
 )
 
 func bootstrap(t *testing.T, base string) {
@@ -154,6 +155,7 @@ func Test_repo_Load(t *testing.T) {
 				ID:         "https://example.com/activities?type=Follow",
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 3,
+				First:      vocab.IRI("https://example.com/activities?maxItems=100&type=Follow"),
 				OrderedItems: vocab.ItemCollection{
 					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: &rootActor},
 				},
@@ -235,7 +237,9 @@ func Test_repo_Load(t *testing.T) {
 			got, err := r.Load(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 
-			be.True(t, vocab.ItemsEqual(tt.want, got))
+			if !vocab.ItemsEqual(tt.want, got) {
+				t.Errorf("%s", cmp.Diff(tt.want, got))
+			}
 		})
 	}
 }

@@ -212,10 +212,7 @@ func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.Collection
 	return col, nil
 }
 
-func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
-	if vocab.IsNil(it) {
-		return nil
-	}
+func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
 	if r.conn == nil {
 		return errors.Newf("nil sql connection")
 	}
@@ -228,7 +225,7 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 	defer rows.Close()
 
 	var c vocab.Item
-	var items vocab.ItemCollection
+	var iris vocab.ItemCollection
 	for rows.Next() {
 		var iri string
 		var raw []byte
@@ -247,9 +244,10 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 			return errors.Annotatef(err, "unable to unmarshal Collection items")
 		}
 		var ok bool
-		if items, ok = itemCol.(vocab.ItemCollection); !ok {
+		if iris, ok = itemCol.(vocab.ItemCollection); !ok {
 			return errors.Annotatef(err, "unable to load Collection items")
 		}
+		iris.Remove(items...)
 	}
 
 	if vocab.IsNil(c) {
@@ -260,7 +258,7 @@ func (r *repo) removeFrom(col vocab.IRI, it vocab.Item) error {
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
-	rawItems, err := vocab.MarshalJSON(items.IRIs())
+	rawItems, err := vocab.MarshalJSON(iris.IRIs())
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection rawItems")
 	}
@@ -289,17 +287,13 @@ func (r *repo) queryRow(query string, args ...any) *sql.Row {
 }
 
 // RemoveFrom
-func (r *repo) RemoveFrom(col vocab.IRI, it vocab.Item) error {
-	return r.removeFrom(col, it)
+func (r *repo) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
+	return r.removeFrom(col, items...)
 }
 
-func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
-	if vocab.IsNil(it) {
-		return nil
-	}
-
+func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 	var c vocab.Item
-	var items vocab.IRIs
+	var iris vocab.IRIs
 
 	var iri string
 	var raw []byte
@@ -313,14 +307,14 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 			if c, err = r.createCollection(createCollection(col.GetLink(), nil)); err != nil {
 				r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
 			}
-			items = make(vocab.IRIs, 0)
+			iris = make(vocab.IRIs, 0)
 		}
 	} else {
 		c, err = vocab.UnmarshalJSON(raw)
 		if err != nil {
 			return errors.Annotatef(err, "unable to unmarshal Collection")
 		}
-		if err = jsonld.Unmarshal(itemsRaw, &items); err != nil {
+		if err = jsonld.Unmarshal(itemsRaw, &iris); err != nil {
 			return errors.Annotatef(err, "unable to unmarshal Collection items")
 		}
 	}
@@ -331,7 +325,7 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 	err := vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
 		col.Updated = time.Now().UTC()
 		for _, cit := range col.OrderedItems {
-			_ = items.Append(cit.GetLink())
+			_ = iris.Append(cit.GetLink())
 		}
 		return nil
 	})
@@ -339,23 +333,23 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 		return errors.Annotatef(err, "unable to update Collection")
 	}
 
-	initialCount := items.Count()
-	_ = items.Append(it.GetLink())
+	initialCount := iris.Count()
+	_ = iris.Append(items...)
 
-	rawItems, err := vocab.MarshalJSON(items)
+	rawItems, err := vocab.MarshalJSON(iris)
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection items")
 	}
 
 	if orderedCollectionTypes.Contains(c.GetType()) {
 		err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
-			col.TotalItems += items.Count() - initialCount
+			col.TotalItems += iris.Count() - initialCount
 			col.OrderedItems = nil
 			return nil
 		})
 	} else if collectionTypes.Contains(c.GetType()) {
 		err = vocab.OnCollection(c, func(col *vocab.Collection) error {
-			col.TotalItems += items.Count() - initialCount
+			col.TotalItems += iris.Count() - initialCount
 			col.Items = nil
 			return nil
 		})
@@ -376,8 +370,8 @@ func (r *repo) addTo(col vocab.IRI, it vocab.Item) error {
 }
 
 // AddTo
-func (r *repo) AddTo(col vocab.IRI, it vocab.Item) error {
-	return r.addTo(col, it)
+func (r *repo) AddTo(col vocab.IRI, items ...vocab.Item) error {
+	return r.addTo(col, items...)
 }
 
 // Delete
@@ -775,7 +769,7 @@ func loadObjectForActivity(r *repo, a *vocab.Activity) error {
 func filtersFromItem(it vocab.Item) *filters.Filters {
 	iris := make([]string, 0)
 	if vocab.IsItemCollection(it) {
-		vocab.OnCollectionIntf(it, func(col vocab.CollectionInterface) error {
+		_ = vocab.OnCollectionIntf(it, func(col vocab.CollectionInterface) error {
 			for _, a := range col.Collection() {
 				iris = append(iris, a.GetLink().String())
 			}
