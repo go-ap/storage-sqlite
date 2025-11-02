@@ -49,7 +49,13 @@ func (r *repo) PasswordCheck(iri vocab.IRI, pw []byte) error {
 func (r *repo) LoadMetadata(iri vocab.IRI, m any) error {
 	raw, err := loadMetadataFromTable(r.conn, iri)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.NewNotFound(err, "not found")
+		}
 		return err
+	}
+	if len(raw) == 0 {
+		return nil
 	}
 
 	if err = decodeFn(raw, m); err != nil {
