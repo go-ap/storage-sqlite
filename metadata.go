@@ -7,6 +7,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
+	"database/sql"
 	"encoding/pem"
 	"fmt"
 
@@ -115,7 +116,7 @@ func (r *repo) SaveKey(iri vocab.IRI, key crypto.PrivateKey) (*vocab.PublicKey, 
 		pub = prv.Public()
 	case *dsa.PrivateKey:
 		pub = &prv.PublicKey
-	case *ed25519.PrivateKey:
+	case ed25519.PrivateKey:
 		pub = prv.Public()
 	default:
 		r.errFn("received key %T does not match any of the known private key types", key)
