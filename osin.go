@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/openshift/osin"
 )
@@ -136,7 +137,7 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		c := new(osin.DefaultClient)
+		c := new(cl)
 		err = rows.Scan(&c.Id, &c.Secret, &c.RedirectUri, &c.UserData)
 		if err != nil {
 			continue
@@ -156,6 +157,31 @@ func errClientNotFound(err error) error {
 	return errors.NewNotFound(err, "Client could not be found")
 }
 
+type cl struct {
+	Id          string
+	Secret      string
+	RedirectUri string
+	UserData    string
+}
+
+func (c cl) GetId() string {
+	return c.Id
+}
+
+func (c cl) GetSecret() string {
+	return c.Secret
+}
+
+func (c cl) GetRedirectUri() string {
+	return c.RedirectUri
+}
+
+func (c cl) GetUserData() any {
+	return c.UserData
+}
+
+var _ osin.Client = cl{}
+
 func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error) {
 	rows, err := conn.QueryContext(ctx, getClientSQL, id)
 	if err != nil {
@@ -168,7 +194,7 @@ func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error
 	defer rows.Close()
 
 	for rows.Next() {
-		c := new(osin.DefaultClient)
+		c := new(cl)
 		err = rows.Scan(&c.Id, &c.Secret, &c.RedirectUri, &c.UserData)
 		if err != nil {
 			return nil, errors.Annotatef(err, "Unable to load client information")
@@ -326,25 +352,33 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 	}
 	defer rows.Close()
 
-	var client string
+	var clientID string
+	var userData sql.NullString
 	for rows.Next() {
 		a = new(osin.AuthorizeData)
 		var createdAt string
-		err = rows.Scan(&client, &a.Code, &a.ExpiresIn, &a.Scope, &a.RedirectUri, &a.State, &createdAt, &a.UserData)
+		err = rows.Scan(&clientID, &a.Code, &a.ExpiresIn, &a.Scope, &a.RedirectUri, &a.State, &createdAt, &userData)
 		if err != nil {
 			return nil, errors.Annotatef(err, "unable to load authorize data")
 		}
 
 		a.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
 		if !a.CreatedAt.IsZero() && a.ExpireAt().Before(time.Now().UTC()) {
-			//s.errFn(log.Ctx{"code": code}, err.Error())
 			return nil, errors.Errorf("Token expired at %s.", a.ExpireAt().String())
+		}
+		if userData.Valid {
+			a.UserData = vocab.IRI(userData.String)
 		}
 		break
 	}
+	if a == nil {
+		return nil, errors.NotFoundf("unable to load authorize data")
+	}
 
-	if len(client) > 0 {
-		a.Client, _ = getClient(conn, ctx, client)
+	if len(clientID) > 0 {
+		if client, err := getClient(conn, ctx, clientID); err == nil {
+			a.Client = client
+		}
 	}
 
 	return a, nil
@@ -444,34 +478,45 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string) (*osin.AccessDat
 	defer rows.Close()
 
 	var createdAt string
-	var client, authorize, prev sql.NullString
+	var client, authorize, prev, userData sql.NullString
 	for rows.Next() {
 		a = new(osin.AccessData)
-		err = rows.Scan(&client, &authorize, &prev, &a.AccessToken, &a.RefreshToken, &a.ExpiresIn, &a.RedirectUri,
-			&a.Scope, &createdAt, &a.UserData)
+		err = rows.Scan(&client, &authorize, &prev, &a.AccessToken, &a.RefreshToken, &a.ExpiresIn, &a.Scope,
+			&a.RedirectUri, &createdAt, &userData)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, errors.NewNotFound(err, "Unable to load authorize data")
+				return nil, errors.NewNotFound(err, "Unable to load access data")
 			}
-			return nil, errors.Annotatef(err, "unable to load authorize data")
+			return nil, errors.Annotatef(err, "unable to load access data")
 		}
 
 		a.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
 		if !a.CreatedAt.IsZero() && a.ExpireAt().Before(time.Now().UTC()) {
-			//s.errFn(log.Ctx{"code": code}, err.Error())
 			return nil, errors.Errorf("Token expired at %s.", a.ExpireAt().String())
 		}
 		break
 	}
+	if a == nil {
+		return nil, errors.NotFoundf("unable to load access data")
+	}
 
 	if client.Valid {
-		a.Client, _ = getClient(conn, ctx, client.String)
+		if client, err := getClient(conn, ctx, client.String); err == nil {
+			a.Client = client
+		}
 	}
 	if authorize.Valid {
-		a.AuthorizeData, _ = loadAuthorize(conn, ctx, authorize.String)
+		if authData, err := loadAuthorize(conn, ctx, authorize.String); err == nil {
+			a.AuthorizeData = authData
+		}
 	}
 	if prev.Valid {
-		a.AccessData, _ = loadAccess(conn, ctx, prev.String)
+		if prevAccess, err := loadAccess(conn, ctx, prev.String); err == nil {
+			a.AccessData = prevAccess
+		}
+	}
+	if userData.Valid {
+		a.UserData = vocab.IRI(userData.String)
 	}
 
 	return a, nil
