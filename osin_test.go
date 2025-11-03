@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/carlmjohnson/be"
+	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
+	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/osin"
 )
 
@@ -122,11 +124,11 @@ func Test_repo_GetClient(t *testing.T) {
 				},
 			},
 			arg: "found",
-			want: &osin.DefaultClient{
+			want: &cl{
 				Id:          "found",
 				Secret:      "secret",
 				RedirectUri: "redirURI",
-				UserData:    any("extra123"),
+				UserData:    "extra123",
 			},
 		},
 	}
@@ -135,8 +137,8 @@ func Test_repo_GetClient(t *testing.T) {
 			s := initializeOsinDb(t, tt.init...)
 			got, err := s.GetClient(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
-			if tt.want != nil {
-				be.DeepEqual(t, tt.want, got)
+			if !cmp.Equal(tt.want, got) {
+				t.Errorf("Different client received, from expected: %s", cmp.Diff(tt.want, got))
 			}
 		})
 	}
@@ -162,11 +164,11 @@ func Test_repo_ListClients(t *testing.T) {
 				},
 			},
 			want: []osin.Client{
-				&osin.DefaultClient{
+				&cl{
 					Id:          "found",
 					Secret:      "secret",
 					RedirectUri: "redirURI",
-					UserData:    any("extra123"),
+					UserData:    "extra123",
 				},
 			},
 		},
@@ -205,21 +207,21 @@ func Test_repo_LoadAccess(t *testing.T) {
 			arg:  "one",
 			init: []initFn{
 				func(db *sql.DB) error {
-					db.Exec(createClient, "client", "secret", "redir", "extra123")
-					db.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
-					_, err := db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "redir", "scope", hellTimeStr, "extra")
+					_, _ = db.Exec(createClient, "client", "secret", "redir", "extra123")
+					_, _ = db.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
+					_, err := db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "scope", "redir", hellTimeStr, "extra")
 					return err
 				},
 			},
 			want: &osin.AccessData{
-				Client: &osin.DefaultClient{
+				Client: &cl{
 					Id:          "client",
 					Secret:      "secret",
 					RedirectUri: "redir",
 					UserData:    "extra123",
 				},
 				AuthorizeData: &osin.AuthorizeData{
-					Client: &osin.DefaultClient{
+					Client: &cl{
 						Id:          "client",
 						Secret:      "secret",
 						RedirectUri: "redir",
@@ -231,7 +233,7 @@ func Test_repo_LoadAccess(t *testing.T) {
 					RedirectUri: "redir",
 					State:       "state",
 					CreatedAt:   hellTime,
-					UserData:    "extra123",
+					UserData:    vocab.IRI("extra123"),
 				},
 				AccessToken:  "one",
 				RefreshToken: "ref",
@@ -239,7 +241,7 @@ func Test_repo_LoadAccess(t *testing.T) {
 				Scope:        "scope",
 				RedirectUri:  "redir",
 				CreatedAt:    hellTime,
-				UserData:     "extra",
+				UserData:     vocab.IRI("extra"),
 			},
 		},
 	}
@@ -248,7 +250,9 @@ func Test_repo_LoadAccess(t *testing.T) {
 			s := initializeOsinDb(t, tt.init...)
 			got, err := s.LoadAccess(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
-			be.DeepEqual(t, tt.want, got)
+			if !cmp.Equal(tt.want, got) {
+				t.Errorf("Different access data received, from expected: %s", cmp.Diff(tt.want, got))
+			}
 		})
 	}
 }
@@ -272,13 +276,13 @@ func Test_repo_LoadAuthorize(t *testing.T) {
 			arg:  "one",
 			init: []initFn{
 				func(db *sql.DB) error {
-					db.Exec(createClient, "client", "secret", "redir", "extra123")
+					_, _ = db.Exec(createClient, "client", "secret", "redir", "extra123")
 					_, err := db.Exec(saveAuthorize, "client", "one", "666", "scop", "redir", "state", hellTimeStr, "extra123")
 					return err
 				},
 			},
 			want: &osin.AuthorizeData{
-				Client: &osin.DefaultClient{
+				Client: &cl{
 					Id:          "client",
 					Secret:      "secret",
 					RedirectUri: "redir",
@@ -290,7 +294,7 @@ func Test_repo_LoadAuthorize(t *testing.T) {
 				RedirectUri: "redir",
 				State:       "state",
 				CreatedAt:   hellTime,
-				UserData:    "extra123",
+				UserData:    vocab.IRI("extra123"),
 			},
 		},
 	}
@@ -299,7 +303,9 @@ func Test_repo_LoadAuthorize(t *testing.T) {
 			s := initializeOsinDb(t, tt.init...)
 			got, err := s.LoadAuthorize(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
-			be.DeepEqual(t, tt.want, got)
+			if !cmp.Equal(tt.want, got) {
+				t.Errorf("Different authorize data received, from expected: %s", cmp.Diff(tt.want, got))
+			}
 		})
 	}
 }
@@ -323,22 +329,22 @@ func Test_repo_LoadRefresh(t *testing.T) {
 			arg:  "ref1",
 			init: []initFn{
 				func(db *sql.DB) error {
-					db.Exec(createClient, "client", "secret", "redir", "extra123")
-					db.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
-					db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "redir", "scope", hellTimeStr, "extra")
+					_, _ = db.Exec(createClient, "client", "secret", "redir", "extra123")
+					_, _ = db.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
+					_, _ = db.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "scope", "redir", hellTimeStr, "extra")
 					_, err := db.Exec(saveRefresh, "ref1", "one")
 					return err
 				},
 			},
 			want: &osin.AccessData{
-				Client: &osin.DefaultClient{
+				Client: &cl{
 					Id:          "client",
 					Secret:      "secret",
 					RedirectUri: "redir",
 					UserData:    "extra123",
 				},
 				AuthorizeData: &osin.AuthorizeData{
-					Client: &osin.DefaultClient{
+					Client: &cl{
 						Id:          "client",
 						Secret:      "secret",
 						RedirectUri: "redir",
@@ -350,7 +356,7 @@ func Test_repo_LoadRefresh(t *testing.T) {
 					RedirectUri: "redir",
 					State:       "state",
 					CreatedAt:   hellTime,
-					UserData:    "extra123",
+					UserData:    vocab.IRI("extra123"),
 				},
 				AccessToken:  "one",
 				RefreshToken: "ref",
@@ -358,7 +364,7 @@ func Test_repo_LoadRefresh(t *testing.T) {
 				Scope:        "scope",
 				RedirectUri:  "redir",
 				CreatedAt:    hellTime,
-				UserData:     "extra",
+				UserData:     vocab.IRI("extra"),
 			},
 		},
 	}
@@ -367,7 +373,9 @@ func Test_repo_LoadRefresh(t *testing.T) {
 			s := initializeOsinDb(t, tt.init...)
 			got, err := s.LoadRefresh(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
-			be.DeepEqual(t, tt.want, got)
+			if !cmp.Equal(tt.want, got) {
+				t.Errorf("Different refresh data received, from expected: %s", cmp.Diff(tt.want, got))
+			}
 		})
 	}
 }

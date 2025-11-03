@@ -171,7 +171,7 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 	if it != nil && it.Count() == 1 && f.IsItemIRI() {
 		return it.Collection().First(), nil
 	}
-	return PaginateCollection(it), nil
+	return filters.Checks(ff).Run(it), nil
 }
 
 var (
@@ -293,28 +293,27 @@ func (r *repo) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
 
 func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 	var c vocab.Item
-	var iris vocab.IRIs
 
 	var iri string
 	var raw []byte
-	var itemsRaw []byte
+	var irisRaw []byte
 
+	iris := make(vocab.IRIs, 0)
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
-	if err := r.queryRow(colSel, col.GetLink()).Scan(&iri, &raw, &itemsRaw); err != nil {
+	if err := r.queryRow(colSel, col.GetLink()).Scan(&iri, &raw, &irisRaw); err != nil {
 		r.logFn("unable to load collection object for %s: %s", col, err.Error())
 		if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col) || isStorageCollectionIRI(col)) {
 			// NOTE(marius): this creates blocked/ignored collections if they don't exist
 			if c, err = r.createCollection(createCollection(col.GetLink(), nil)); err != nil {
 				r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
 			}
-			iris = make(vocab.IRIs, 0)
 		}
 	} else {
 		c, err = vocab.UnmarshalJSON(raw)
 		if err != nil {
 			return errors.Annotatef(err, "unable to unmarshal Collection")
 		}
-		if err = jsonld.Unmarshal(itemsRaw, &iris); err != nil {
+		if err = jsonld.Unmarshal(irisRaw, &iris); err != nil {
 			return errors.Annotatef(err, "unable to unmarshal Collection items")
 		}
 	}
@@ -333,23 +332,22 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 		return errors.Annotatef(err, "unable to update Collection")
 	}
 
-	initialCount := iris.Count()
 	_ = iris.Append(items...)
 
-	rawItems, err := vocab.MarshalJSON(iris)
+	rawItems, err := iris.MarshalJSON()
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection items")
 	}
 
 	if orderedCollectionTypes.Contains(c.GetType()) {
 		err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
-			col.TotalItems += iris.Count() - initialCount
+			col.TotalItems = iris.Count()
 			col.OrderedItems = nil
 			return nil
 		})
 	} else if collectionTypes.Contains(c.GetType()) {
 		err = vocab.OnCollection(c, func(col *vocab.Collection) error {
-			col.TotalItems += iris.Count() - initialCount
+			col.TotalItems = iris.Count()
 			col.Items = nil
 			return nil
 		})
@@ -941,14 +939,18 @@ func load(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.CollectionInterface
 
 func postProcessCollection(items vocab.ItemCollection) vocab.WithCollectionFn {
 	return func(col *vocab.Collection) error {
-		col.Items = items
+		if len(items) > 0 {
+			col.Items = items
+		}
 		return nil
 	}
 }
 
 func postProcessOrderedCollection(items vocab.ItemCollection) vocab.WithOrderedCollectionFn {
 	return func(col *vocab.OrderedCollection) error {
-		col.OrderedItems = items
+		if len(items) > 0 {
+			col.OrderedItems = items
+		}
 		return nil
 	}
 }
@@ -964,13 +966,10 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f *filters.Filters) (vocab.
 	var col vocab.Item
 	var res vocab.CollectionInterface
 
-	var cIri vocab.IRI
-	var raw []byte
-
-	table := getCollectionTypeFromIRI(iri)
 	selects := []string{"c.iri = ? "}
 	params := []any{iri}
 
+	table := getCollectionTypeFromIRI(iri)
 	var selWithItems string
 	if isStorageCollectionIRI(iri) {
 		limit := getPagination(f, "x", &selects, &params)
@@ -984,31 +983,33 @@ from collections c
 	left join %s x where %s group by c.iri order by x.published desc %s;`
 		selWithItems = fmt.Sprintf(sel, table, strings.Join(selects, " AND "), limit)
 	} else {
-		params = append(params, iri)
-		params = append(params, params...)
 		limit := getPagination(f, "x", &selects, &params)
 		where := strings.Join(selects, " AND ")
-		sq1 := fmt.Sprintf(`
+		selWithItems = fmt.Sprintf(`
 	select c.iri iri,
 		json_patch(
 			json(c.raw),
-			json_object('orderedItems', json_group_array(json(x.raw)))
-		) raw,
-		x.published published 
-	from collections c, json_each(c.items)
-		left join %s x on value = x.iri where %s
-`, table, where)
-
-		sq2 := fmt.Sprintf(`select c.iri iri, c.raw raw, c.published published from collections c where %s`, where)
-
-		sel := `select iri, raw from ( %s union %s ) where iri is not null group by iri order by published desc %s;`
-		selWithItems = fmt.Sprintf(sel, sq1, sq2, limit)
+			json_object('orderedItems', json_group_array(json(coalesce(x.raw, y.raw, o.raw))))
+		) raw
+	from collections c, json_each(json_insert(c.items, '$[0]', null))
+		left join activities x on value = x.iri 
+		left join actors y on value = y.iri 
+		left join objects o on value = o.iri 
+where %s order by coalesce(x.published, y.published, o.published) desc %s`, where, limit)
 	}
+
+	var cIri sql.NullString
+	var raw []byte
+
 	if err := conn.QueryRow(selWithItems, params...).Scan(&cIri, &raw); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.NotFoundf("Unable to find items in collection %s", iri)
 		}
 		return nil, errors.Annotatef(err, "unable to run select for %s", iri)
+	}
+
+	if len(raw) == 0 {
+		return nil, errors.NotFoundf("Unable to find items in collection %s", iri)
 	}
 
 	var err error
@@ -1027,10 +1028,10 @@ from collections c
 	if table == "objects" {
 		items = loadObjectFirstLevelIRIProperties(r, items, f)
 	}
-	if table == "activities" {
-		items = loadActivityFirstLevelIRIProperties(r, items, f)
-		items = runActivityFilters(r, items, f)
-	}
+	//if table == "activities" {
+	//	items = loadActivityFirstLevelIRIProperties(r, items, f)
+	//	items = runActivityFilters(r, items, f)
+	//}
 	items = runObjectFilters(items, f)
 
 	if orderedCollectionTypes.Contains(res.GetType()) {
