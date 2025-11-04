@@ -1,4 +1,4 @@
-image: archlinux
+image: alpine/edge
 packages:
   - go
 sources:
