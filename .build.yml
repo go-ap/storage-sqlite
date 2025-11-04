@@ -8,6 +8,9 @@ environment:
 tasks:
   - tests: |
       cd storage-sqlite && make test
+  - conformance-suite: |
+      cd storage-sqlite
+      go test -tags conformance -count=1 -json . | go run github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt -showteststatus
   - coverage: |
       set -a +x
       cd storage-sqlite && make coverage
