@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	vocab "github.com/go-ap/activitypub"
@@ -99,13 +98,14 @@ var decodeFn = func(data []byte, m any) error {
 func (r *repo) Clone() osin.Storage {
 	// NOTICE(marius): osin, uses this before saving the Authorization data, and it fails if the database
 	// is not closed. This is why the tuneQuery journal_mode = WAL is needed.
-	r.Close()
-	db, err := New(Config{Path: filepath.Dir(r.path), LogFn: r.logFn, ErrFn: r.errFn})
-	if err != nil {
-		r.errFn("unable to clone sqlite repository: %+s", err)
-	}
-	db.cache = r.cache
-	return db
+	//r.Close()
+	//db, err := New(Config{Path: filepath.Dir(r.path), LogFn: r.logFn, ErrFn: r.errFn})
+	//if err != nil {
+	//	r.errFn("unable to clone sqlite repository: %+s", err)
+	//}
+	//db.cache = r.cache
+	//return db
+	return r
 }
 
 // Close
