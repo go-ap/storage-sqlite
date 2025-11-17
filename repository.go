@@ -155,7 +155,7 @@ func getCollectionTable(typ vocab.CollectionPath) vocab.CollectionPath {
 
 // Load
 func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
-	if !isStorageCollectionIRI(i) {
+	if !isCollectionIRI(i) {
 		ff = append(filters.Checks{filters.SameID(i)}, ff...)
 	}
 	it, err := load(r, i, ff...)
@@ -728,21 +728,6 @@ func loadObjectForActivity(r *repo, a *vocab.Activity) error {
 		}
 	}
 	return nil
-}
-
-func filtersFromItem(it vocab.Item) *filters.Filters {
-	iris := make([]string, 0)
-	if vocab.IsItemCollection(it) {
-		_ = vocab.OnCollectionIntf(it, func(col vocab.CollectionInterface) error {
-			for _, a := range col.Collection() {
-				iris = append(iris, a.GetLink().String())
-			}
-			return nil
-		})
-	} else {
-		iris = append(iris, it.GetLink().String())
-	}
-	return filters.FiltersNew(filters.ItemKey(iris...))
 }
 
 func loadActorForActivity(r *repo, a *vocab.Activity) error {
