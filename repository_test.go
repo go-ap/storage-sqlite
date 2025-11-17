@@ -10,6 +10,7 @@ import (
 	"github.com/carlmjohnson/be"
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
+	"github.com/go-ap/filters"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -234,7 +235,8 @@ func Test_repo_Load(t *testing.T) {
 			_ = r.Open()
 			defer r.Close()
 
-			got, err := r.Load(tt.arg)
+			ff, _ := filters.FromIRI(tt.arg)
+			got, err := r.Load(tt.arg, ff...)
 			checkErrorsEqual(t, tt.err, err)
 
 			if !vocab.ItemsEqual(tt.want, got) {
