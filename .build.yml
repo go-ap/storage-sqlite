@@ -3,6 +3,8 @@ packages:
   - go
 sources:
   - https://github.com/go-ap/storage-sqlite
+secrets:
+  - 989da578-3fc1-4f6b-a116-d7c9f434b1f3
 environment:
   GO111MODULE: 'on'
 tasks:
@@ -12,5 +14,6 @@ tasks:
       cd storage-sqlite
       go test -tags conformance -count=1 -json . | go run github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt -showteststatus
   - coverage: |
-      set -a +x
-      cd storage-sqlite && make coverage
+      cd storage-sqlite
+      git switch -C master origin/master
+      go run github.com/mattn/goveralls@latest -tags conformance -flagname unit-tests -service=${CI_NAME} -repotokenfile ~/.coveralls.tok
