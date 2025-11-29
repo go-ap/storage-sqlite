@@ -57,33 +57,6 @@ const (
 `
 )
 
-func bootstrapOsin(r repo) error {
-	exec := func(conn *sql.DB, qRaw string, par ...any) error {
-		qSql := fmt.Sprintf(qRaw, par...)
-		r.logFn("Executing %s", stringClean(qSql))
-		if _, err := conn.Exec(qSql); err != nil {
-			r.errFn("Failed: %s", err)
-			return errors.Annotatef(err, "unable to execute: %s", stringClean(qSql))
-		}
-		r.logFn("Success!")
-		return nil
-	}
-
-	if err := exec(r.conn, createClientTable); err != nil {
-		return err
-	}
-	if err := exec(r.conn, createAuthorizeTable); err != nil {
-		return err
-	}
-	if err := exec(r.conn, createAccessTable); err != nil {
-		return err
-	}
-	if err := exec(r.conn, createRefreshTable); err != nil {
-		return err
-	}
-	return nil
-}
-
 var encodeFn = func(v any) ([]byte, error) {
 	buf := bytes.Buffer{}
 	err := json.NewEncoder(&buf).Encode(v)
@@ -123,16 +96,26 @@ const getClients = "SELECT code, secret, redirect_uri, extra FROM clients;"
 
 // ListClients
 func (r *repo) ListClients() ([]osin.Client, error) {
+	if r == nil || r.conn == nil {
+		return nil, errNotOpen
+	}
 
 	result := make([]osin.Client, 0)
 
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancelFn()
+
 	rows, err := r.conn.QueryContext(ctx, getClients)
-	if errors.Is(err, sql.ErrNoRows) || errors.Is(rows.Err(), sql.ErrNoRows) {
-		return nil, errors.NewNotFound(err, "No clients found")
-	} else if err != nil {
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.NewNotFound(err, "No clients found")
+		}
 		r.errFn("Error listing clients: %+s", err)
 		return result, errors.Annotatef(err, "Unable to load clients")
+	}
+
+	if errors.Is(rows.Err(), sql.ErrNoRows) {
+		return nil, errors.NewNotFound(err, "No clients found")
 	}
 	defer rows.Close()
 
@@ -140,12 +123,16 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 		c := new(cl)
 		err = rows.Scan(&c.Id, &c.Secret, &c.RedirectUri, &c.UserData)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		result = append(result, c)
 	}
 
-	return result, err
+	if len(result) == 0 {
+		return nil, nil
+	}
+
+	return result, nil
 }
 
 const getClientSQL = "SELECT code, secret, redirect_uri, extra FROM clients WHERE code=?;"
@@ -188,7 +175,6 @@ func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errClientNotFound(err)
 		}
-		//s.errFn(log.Ctx{"code": id, "table": "client", "operation": "select"}, "%s", err)
 		return nil, errors.Annotatef(err, "Unable to load client")
 	}
 	defer rows.Close()
@@ -206,11 +192,15 @@ func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error
 
 // GetClient
 func (r *repo) GetClient(id string) (osin.Client, error) {
+	if r == nil || r.conn == nil {
+		return nil, errNotOpen
+	}
 	if id == "" {
 		return nil, errors.NotFoundf("Empty client id")
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancelFn()
 
 	return getClient(r.conn, ctx, id)
 }
@@ -222,6 +212,9 @@ var nilClientErr = errors.Newf("nil client")
 
 // UpdateClient
 func (r *repo) UpdateClient(c osin.Client) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
 	if c == nil {
 		return nilClientErr
 	}
@@ -256,6 +249,9 @@ const createClient = "INSERT INTO clients (code, secret, redirect_uri, extra) VA
 
 // CreateClient
 func (r *repo) CreateClient(c osin.Client) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
 	if c == nil {
 		return nilClientErr
 	}
@@ -288,6 +284,9 @@ const removeClient = "DELETE FROM clients WHERE code=?"
 
 // RemoveClient
 func (r *repo) RemoveClient(id string) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	if _, err := r.conn.ExecContext(ctx, removeClient, id); err != nil {
 		r.errFn("Failed deleting client id %s: %+s", id, err)
@@ -305,8 +304,11 @@ const saveAuthorize = `INSERT INTO authorize (client, code, expires_in, scope, r
 
 // SaveAuthorize saves authorize data.
 func (r *repo) SaveAuthorize(data *osin.AuthorizeData) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
 	if data == nil {
-		return errors.Newf("invalid nil authorize to save")
+		return errors.Newf("unable to save nil authorization data")
 	}
 
 	extra, err := assertToBytes(data.UserData)
@@ -386,11 +388,16 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 
 // LoadAuthorize looks up AuthorizeData by a code.
 func (r *repo) LoadAuthorize(code string) (*osin.AuthorizeData, error) {
+	if r == nil || r.conn == nil {
+		return nil, errNotOpen
+	}
 	if code == "" {
 		return nil, errors.Newf("Empty authorize code")
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancelFn()
+
 	return loadAuthorize(r.conn, ctx, code)
 }
 
@@ -398,6 +405,9 @@ const removeAuthorize = "DELETE FROM authorize WHERE code=?"
 
 // RemoveAuthorize revokes or deletes the authorization code.
 func (r *repo) RemoveAuthorize(code string) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	if _, err := r.conn.ExecContext(ctx, removeAuthorize, code); err != nil {
 		r.errFn("Failed deleting authorize data code %s: %+s", code, err)
@@ -414,6 +424,9 @@ var WriteTxn = sql.TxOptions{Isolation: sql.LevelWriteCommitted, ReadOnly: false
 
 // SaveAccess writes AccessData.
 func (r *repo) SaveAccess(data *osin.AccessData) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
 	prev := ""
 	authorizeData := &osin.AuthorizeData{}
 
@@ -529,11 +542,16 @@ var ReadOnlyTxn = sql.TxOptions{
 
 // LoadAccess retrieves access data by token. Client information MUST be loaded together.
 func (r *repo) LoadAccess(code string) (*osin.AccessData, error) {
+	if r == nil || r.conn == nil {
+		return nil, errNotOpen
+	}
 	if code == "" {
 		return nil, errors.Newf("Empty access code")
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancelFn()
+
 	return loadAccess(r.conn, ctx, code)
 }
 
@@ -541,6 +559,9 @@ const removeAccess = "DELETE FROM access WHERE token=?"
 
 // RemoveAccess revokes or deletes an AccessData.
 func (r *repo) RemoveAccess(code string) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 	_, err := r.conn.ExecContext(ctx, removeAccess, code)
 	if err != nil {
@@ -555,6 +576,9 @@ const loadRefresh = "SELECT access_token FROM refresh WHERE token=? LIMIT 1"
 
 // LoadRefresh retrieves refresh AccessData. Client information MUST be loaded together.
 func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
+	if r == nil || r.conn == nil {
+		return nil, errNotOpen
+	}
 	if code == "" {
 		return nil, errors.Newf("Empty refresh code")
 	}
@@ -576,6 +600,9 @@ const removeRefresh = "DELETE FROM refresh WHERE token=?"
 
 // RemoveRefresh revokes or deletes refresh AccessData.
 func (r *repo) RemoveRefresh(code string) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
 
 	_, err := r.conn.ExecContext(ctx, removeRefresh, code)

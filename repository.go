@@ -20,9 +20,9 @@ import (
 var encodeItemFn = vocab.MarshalJSON
 var decodeItemFn = vocab.UnmarshalJSON
 
-type loggerFn func(string, ...interface{})
+type loggerFn func(string, ...any)
 
-var defaultLogFn = func(string, ...interface{}) {}
+var defaultLogFn = func(string, ...any) {}
 
 type Config struct {
 	Path        string
@@ -61,8 +61,13 @@ type repo struct {
 	errFn loggerFn
 }
 
+var errNotOpen = errors.Newf("sqlite db is not open")
+
 // Open opens the sqlite database
 func (r *repo) Open() (err error) {
+	if r == nil {
+		return errors.Newf("Unable to open uninitialized db")
+	}
 	if r.conn == nil {
 		if r.conn, err = sqlOpen(r.path); err != nil {
 			return err
@@ -155,6 +160,10 @@ func getCollectionTable(typ vocab.CollectionPath) vocab.CollectionPath {
 
 // Load
 func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
+	if r == nil || r.conn == nil {
+		return nil, errNotOpen
+	}
+
 	if !isCollectionIRI(i) {
 		ff = append(filters.Checks{filters.SameID(i)}, ff...)
 	}
@@ -176,6 +185,10 @@ var (
 
 // Save
 func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
+	if r == nil || r.conn == nil {
+		return nil, errNotOpen
+	}
+
 	return save(r, it)
 }
 
@@ -183,6 +196,10 @@ var emptyCol = []byte{'[', ']'}
 
 // Create
 func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
+	if r == nil || r.conn == nil {
+		return nil, errNotOpen
+	}
+
 	if vocab.IsNil(col) {
 		return nil, nilItemErr
 	}
@@ -198,8 +215,8 @@ func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.Collection
 		r.errFn("unable to marshal collection %s: %s", col.GetLink(), err)
 		return col, errors.Annotatef(err, "unable to save Collection")
 	}
-	ins := "INSERT OR REPLACE INTO collections (raw, items) VALUES (?, ?);"
-	if _, err = r.conn.Exec(ins, raw, emptyCol); err != nil {
+	ins := "INSERT OR REPLACE INTO collections (raw, iri, items) VALUES (?, ?, ?);"
+	if _, err = r.conn.Exec(ins, raw, col.GetLink(), emptyCol); err != nil {
 		r.errFn("query error when creating %s: %s\n%s", col.GetLink(), err, ins)
 		return col, errors.Annotatef(err, "unable to save Collection")
 	}
@@ -274,6 +291,7 @@ func (r *repo) exec(query string, args ...any) (sql.Result, error) {
 	}
 	return r.conn.Exec(query, args...)
 }
+
 func (r *repo) queryRow(query string, args ...any) *sql.Row {
 	if r.conn == nil {
 		return &sql.Row{}
@@ -283,6 +301,10 @@ func (r *repo) queryRow(query string, args ...any) *sql.Row {
 
 // RemoveFrom
 func (r *repo) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
+
 	return r.removeFrom(col, items...)
 }
 
@@ -295,9 +317,10 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 
 	iris := make(vocab.IRIs, 0)
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
-	if err := r.queryRow(colSel, col.GetLink()).Scan(&iri, &raw, &irisRaw); err != nil {
-		r.logFn("unable to load collection object for %s: %s", col, err.Error())
-		if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col) || isStorageCollectionIRI(col)) {
+	err := r.queryRow(colSel, col.GetLink()).Scan(&iri, &raw, &irisRaw)
+	if err != nil {
+		r.logFn("unable to load collection object for %s: %s", col, err)
+		if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col)) {
 			// NOTE(marius): this creates blocked/ignored collections if they don't exist
 			if c, err = r.createCollection(createCollection(col.GetLink(), nil)); err != nil {
 				r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
@@ -317,7 +340,7 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 	}
 
 	// NOTE(marius): load previous items' IRIs
-	err := vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
+	err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
 		col.Updated = time.Now().UTC()
 		return iris.Append(col.Collection()...)
 	})
@@ -351,8 +374,8 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
-	query := `INSERT INTO collections (raw, items) VALUES (?, ?) ON CONFLICT(iri) DO UPDATE SET raw = ?, items = ?;`
-	_, err = r.exec(query, raw, rawItems, raw, rawItems)
+	query := `INSERT INTO collections (raw, iri, items) VALUES (?, ?, ?) ON CONFLICT(iri) DO UPDATE SET raw = ?, items = ?;`
+	_, err = r.exec(query, raw, col.GetLink(), rawItems, raw, rawItems)
 	if err != nil {
 		r.errFn("query error: %s\n%s %#v", err, query, vocab.IRIs{c.GetLink()})
 		return errors.Annotatef(err, "query error")
@@ -363,11 +386,19 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 
 // AddTo
 func (r *repo) AddTo(col vocab.IRI, items ...vocab.Item) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
+
 	return r.addTo(col, items...)
 }
 
 // Delete
 func (r *repo) Delete(it vocab.Item) error {
+	if r == nil || r.conn == nil {
+		return errNotOpen
+	}
+
 	if vocab.IsNil(it) {
 		return nil
 	}
@@ -388,15 +419,16 @@ func (r *repo) Delete(it vocab.Item) error {
 	return delete(*r, it)
 }
 
+const dbFile = "storage.sqlite"
+
 func getFullPath(c Config) (string, error) {
-	p, err := getAbsStoragePath(c.Path)
-	if err != nil {
+	if !filepath.IsAbs(c.Path) {
+		c.Path, _ = filepath.Abs(c.Path)
+	}
+	if err := mkDirIfNotExists(c.Path); err != nil {
 		return "memory", err
 	}
-	if err := mkDirIfNotExists(p); err != nil {
-		return "memory", err
-	}
-	return path.Join(p, "storage.sqlite"), nil
+	return path.Join(c.Path, dbFile), nil
 }
 
 func getAbsStoragePath(p string) (string, error) {
@@ -1059,9 +1091,9 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 		return it, errors.Annotatef(err, "query error")
 	}
 
-	columns := []string{"raw"}
-	tokens := []string{"?"}
-	params := []interface{}{interface{}(raw)}
+	columns := []string{"raw, iri"}
+	tokens := []string{"?, ?"}
+	params := []any{raw, iri}
 
 	table := string(filters.ObjectsType)
 	typ := it.GetType()

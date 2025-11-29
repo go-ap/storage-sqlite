@@ -21,6 +21,9 @@ func Clean(conf Config) error {
 }
 
 func Bootstrap(conf Config) error {
+	if conf.Path == "" {
+		return os.ErrNotExist
+	}
 	p, err := getFullPath(conf)
 	if err != nil {
 		return err
@@ -30,6 +33,12 @@ func Bootstrap(conf Config) error {
 		path:  p,
 		logFn: defaultLogFn,
 		errFn: defaultLogFn,
+	}
+	if conf.LogFn != nil {
+		r.logFn = conf.LogFn
+	}
+	if conf.ErrFn != nil {
+		r.errFn = conf.ErrFn
 	}
 	if err = r.Open(); err != nil {
 		return err
@@ -43,7 +52,7 @@ func Bootstrap(conf Config) error {
 	exec := func(qRaw string, par ...interface{}) error {
 		qSql := fmt.Sprintf(qRaw, par...)
 		if _, err = r.conn.Exec(qSql); err != nil {
-			return errors.Annotatef(err, "unable to execute: %q", qSql)
+			return errors.Annotatef(err, `unable to execute: "%s"`, strings.ReplaceAll(qSql, "\n", ""))
 		}
 		return nil
 	}

@@ -2,10 +2,17 @@ package sqlite
 
 import (
 	"database/sql"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/carlmjohnson/be"
 	vocab "github.com/go-ap/activitypub"
+	"github.com/go-ap/errors"
+	"github.com/google/go-cmp/cmp"
+	"github.com/mattn/go-sqlite3"
 )
 
 func checkInsertedValue(t *testing.T, db *sql.DB, actor vocab.Item) {
@@ -30,7 +37,7 @@ func checkInsertedValue(t *testing.T, db *sql.DB, actor vocab.Item) {
 	}
 }
 
-func TestBootstrap(t *testing.T) {
+func TestBootstrap1(t *testing.T) {
 	tests := []struct {
 		name string
 		err  error
@@ -51,6 +58,112 @@ func TestBootstrap(t *testing.T) {
 
 			err := Bootstrap(conf)
 			checkErrorsEqual(t, tt.err, err)
+		})
+	}
+}
+
+func createForbiddenDir(t *testing.T) string {
+	forbiddenPath := filepath.Join(t.TempDir(), "forbidden")
+	err := os.MkdirAll(forbiddenPath, 0o000)
+	if err != nil {
+		t.Fatalf("unable to create forbidden test path %s: %s", forbiddenPath, err)
+	}
+	return forbiddenPath
+}
+
+func TestBootstrap(t *testing.T) {
+	forbiddenPath := createForbiddenDir(t)
+	tests := []struct {
+		name    string
+		arg     Config
+		wantErr error
+	}{
+		{
+			name:    "empty",
+			arg:     Config{},
+			wantErr: os.ErrNotExist,
+		},
+		{
+			name: "temp",
+			arg:  Config{Path: filepath.Join(t.TempDir())},
+		},
+		{
+			name:    "deeper than forbidden",
+			arg:     Config{Path: filepath.Join(forbiddenPath, "should-fail")},
+			wantErr: &fs.PathError{Op: "stat", Path: filepath.Join(forbiddenPath, "should-fail"), Err: syscall.EACCES},
+		},
+		{
+			name: "forbidden",
+			arg:  Config{Path: forbiddenPath},
+			wantErr: errors.Annotatef(
+				sqlite3.ErrPerm,
+				`unable to execute: "CREATE TABLE IF NOT EXISTS objects (  "raw" BLOB,  "iri" TEXT NOT NULL constraint objects_key unique,  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,  "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,  "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,  "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,  "summary" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.summary')) VIRTUAL,  "content" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.content')) VIRTUAL) STRICT;CREATE INDEX objects_type ON objects(type);CREATE INDEX objects_name ON objects(name);CREATE INDEX objects_content ON objects(content);CREATE INDEX objects_published ON objects(published);CREATE INDEX objects_updated ON objects(updated);"`,
+			),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := Bootstrap(tt.arg); !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
+				t.Errorf("Bootstrap() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr != nil {
+				return
+			}
+
+			ff := fields{
+				path: tt.arg.Path,
+			}
+			r := mockRepo(t, ff, withOpenRoot)
+			defer r.Close()
+
+		})
+	}
+}
+
+func TestClean(t *testing.T) {
+	forbiddenPath := createForbiddenDir(t)
+	tests := []struct {
+		name    string
+		arg     Config
+		wantErr error
+	}{
+		{
+			name:    "empty",
+			arg:     Config{},
+			wantErr: nil,
+		},
+		{
+			name:    "temp - exists, but empty",
+			arg:     Config{Path: t.TempDir()},
+			wantErr: nil,
+		},
+		{
+			name:    "temp - does not exists",
+			arg:     Config{Path: filepath.Join(t.TempDir(), "test")},
+			wantErr: nil,
+		},
+		{
+			name:    "invalid path " + os.DevNull,
+			arg:     Config{Path: os.DevNull},
+			wantErr: errors.Errorf("path exists, and is not a folder %s", os.DevNull),
+		},
+		{
+			name:    "deeper than forbidden",
+			arg:     Config{Path: filepath.Join(forbiddenPath, "should-fail")},
+			wantErr: &fs.PathError{Op: "stat", Path: filepath.Join(forbiddenPath, "should-fail"), Err: syscall.EACCES},
+		},
+		{
+			name:    "forbidden",
+			arg:     Config{Path: forbiddenPath},
+			wantErr: &fs.PathError{Op: "open", Path: forbiddenPath, Err: syscall.EACCES},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := Clean(tt.arg); !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
+				t.Errorf("Clean() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
+			}
 		})
 	}
 }

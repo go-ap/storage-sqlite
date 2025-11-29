@@ -4,8 +4,9 @@ const (
 	createActorsQuery = `
 CREATE TABLE IF NOT EXISTS actors (
   "raw" BLOB,
-  "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint actors_key unique,
-  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL NOT NULL,
+  "iri" TEXT NOT NULL constraint actors_key unique,
+  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL,
+  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
   "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
   "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
   "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
@@ -25,8 +26,9 @@ CREATE INDEX actors_updated ON actors(updated);
 	createActivitiesQuery = `
 CREATE TABLE IF NOT EXISTS activities (
   "raw" BLOB,
-  "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint activities_key unique,
-  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL NOT NULL,
+  "iri" TEXT NOT NULL constraint activities_key unique,
+  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,
+  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
   "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
   "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
   "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
@@ -34,7 +36,7 @@ CREATE TABLE IF NOT EXISTS activities (
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
   "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
-  "actor" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.actor')) VIRTUAL NOT NULL CONSTRAINT activities_actors_iri_fk REFERENCES actors (iri),
+  "actor" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.actor')) VIRTUAL CONSTRAINT activities_actors_iri_fk REFERENCES actors (iri),
   "object" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.object')) VIRTUAL CONSTRAINT activities_objects_iri_fk REFERENCES objects (iri)
 ) STRICT;
 CREATE INDEX activities_type ON activities(type);
@@ -47,7 +49,8 @@ CREATE INDEX activities_updated ON activities(updated);
 	createObjectsQuery = `
 CREATE TABLE IF NOT EXISTS objects (
   "raw" BLOB,
-  "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint objects_key unique,
+  "iri" TEXT NOT NULL constraint objects_key unique,
+  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
   "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
   "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
@@ -70,7 +73,8 @@ CREATE INDEX objects_updated ON objects(updated);
 	createCollectionsQuery = `
 CREATE TABLE IF NOT EXISTS collections (
   "raw" BLOB,
-  "iri" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL NOT NULL constraint collections_key unique,
+  "iri" TEXT NOT NULL constraint collections_key unique,
+  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
   "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
   "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
