@@ -188,6 +188,9 @@ func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
 	if r == nil || r.conn == nil {
 		return nil, errNotOpen
 	}
+	if vocab.IsNil(it) {
+		return nil, errors.Newf("Unable to save nil element")
+	}
 
 	return save(r, it)
 }
@@ -341,15 +344,21 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 
 	// NOTE(marius): load previous items' IRIs
 	err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
-		col.Updated = time.Now().UTC()
 		return iris.Append(col.Collection()...)
 	})
 	if err != nil {
 		return errors.Annotatef(err, "unable to update Collection")
 	}
 
-	// NOTE(marius): append received items to the list
-	_ = iris.Append(items...)
+	for _, it := range items {
+		if vocab.IsIRI(it) {
+			// NOTE(marius): append received items to the list
+			if _, err = loadFromThreeTables(r, it.GetLink()); err != nil {
+				return errors.NewNotFound(err, "invalid item to add to collection")
+			}
+		}
+		_ = iris.Append(it)
+	}
 
 	rawItems, err := iris.MarshalJSON()
 	if err != nil {
@@ -492,9 +501,12 @@ func stripFiltersFromIRI(iri vocab.IRI) vocab.IRI {
 func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface, error) {
 	conn := r.conn
 	// NOTE(marius): this doesn't seem to be working, our filter is never an IRI or Item
-	if isSingleItem(f...) && r.cache != nil {
-		if cachedIt := r.cache.Load(iri); cachedIt != nil {
-			return &vocab.ItemCollection{cachedIt}, nil
+	if isSingleItem(f...) {
+		f = filters.Checks{filters.SameID(iri)}
+		if r.cache != nil {
+			if cachedIt := r.cache.Load(iri); cachedIt != nil {
+				return &vocab.ItemCollection{cachedIt}, nil
+			}
 		}
 	}
 
@@ -546,6 +558,9 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 			r.cache.Store(it.GetLink(), it)
 		}
 		ret = append(ret, it)
+	}
+	if len(ret) == 0 {
+		return nil, errors.NotFoundf("not found")
 	}
 
 	ret = loadActorFirstLevelIRIProperties(r, ret, f...)
@@ -887,18 +902,17 @@ func load(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface
 	var items vocab.CollectionInterface
 	var err error
 
-	items, err = loadFromThreeTables(r, iri, f...)
-	if err != nil {
-		return items, err
-	}
-
 	if !isCollectionIRI(iri) {
+		items, err = loadFromThreeTables(r, iri, f...)
+		if err != nil {
+			return items, err
+		}
+
 		if items.Count() == 0 {
 			return nil, errors.NotFoundf("Not found")
 		}
 		return items, nil
 	}
-
 	par, err := loadFromCollectionTable(r, colIRI(iri), f...)
 	if err != nil {
 		return nil, err
@@ -910,12 +924,10 @@ func load(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface
 		ob.ID = iri
 		return nil
 	})
-	if isStorageCollectionIRI(iri) {
-		if orderedCollectionTypes.Contains(par.GetType()) {
-			_ = vocab.OnOrderedCollection(par, postProcessOrderedCollection(items.Collection()))
-		} else if collectionTypes.Contains(par.GetType()) {
-			_ = vocab.OnCollection(par, postProcessCollection(items.Collection()))
-		}
+	if orderedCollectionTypes.Contains(par.GetType()) {
+		_ = vocab.OnOrderedCollection(par, postProcessOrderedCollection(par.Collection()))
+	} else if collectionTypes.Contains(par.GetType()) {
+		_ = vocab.OnCollection(par, postProcessCollection(par.Collection()))
 	}
 	return par, err
 }
@@ -945,9 +957,6 @@ func isHiddenCollectionIRI(i vocab.IRI) bool {
 
 func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface, error) {
 	conn := r.conn
-
-	var col vocab.Item
-	var res vocab.CollectionInterface
 
 	selects := []string{"c.iri = ? "}
 	params := []any{iri}
@@ -1002,12 +1011,9 @@ where %s order by coalesce(x.published, y.published, o.published) desc LIMIT %d`
 	}
 
 	var err error
-	if col, err = vocab.UnmarshalJSON(raw); err != nil {
+	res := vocab.OrderedCollection{}
+	if err = decodeFn(raw, &res); err != nil {
 		return nil, errors.Annotatef(err, "Collection unmarshal error")
-	}
-	var ok bool
-	if res, ok = col.(vocab.CollectionInterface); !ok {
-		return nil, errors.Newf("loaded item is not a valid Collection")
 	}
 
 	items := res.Collection()
@@ -1030,7 +1036,7 @@ where %s order by coalesce(x.published, y.published, o.published) desc LIMIT %d`
 			err = vocab.OnCollection(res, postProcessCollection(items))
 		}
 	}
-	return res, err
+	return &res, err
 }
 
 func delete(l repo, it vocab.Item) error {
@@ -1113,7 +1119,6 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 	query := fmt.Sprintf(`INSERT OR REPLACE INTO %s (%s) VALUES (%s);`, table, strings.Join(columns, ", "), strings.Join(tokens, ", "))
 
 	if _, err = r.conn.Exec(query, params...); err != nil {
-		r.errFn("query error: %s\n%s", err, query)
 		return it, errors.Annotatef(err, "query error")
 	}
 	col, _ := path.Split(iri.String())
@@ -1141,6 +1146,12 @@ func createCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInterf
 	}
 	if !vocab.IsNil(owner) {
 		col.AttributedTo = owner.GetLink()
+		_ = vocab.OnObject(owner, func(ob *vocab.Object) error {
+			if !ob.Published.IsZero() {
+				col.Published = ob.Published
+			}
+			return nil
+		})
 	}
 	return &col
 }

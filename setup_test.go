@@ -222,7 +222,7 @@ func mockAccess(code string, cl osin.Client) *osin.AccessData {
 
 func withClient(t *testing.T, r *repo) *repo {
 	if err := r.CreateClient(defaultClient); err != nil {
-		r.errFn("failed to create client: %s", err)
+		t.Errorf("failed to create client: %s", err)
 	}
 	return r
 }

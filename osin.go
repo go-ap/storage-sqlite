@@ -20,7 +20,7 @@ const (
 	"code" varchar constraint client_code_pkey PRIMARY KEY,
 	"secret" varchar NOT NULL,
 	"redirect_uri" varchar NOT NULL,
-	"extra" BLOB DEFAULT '{}'
+	"extra" BLOB DEFAULT NULL
 );
 `
 
@@ -340,7 +340,12 @@ func (r *repo) SaveAuthorize(data *osin.AuthorizeData) error {
 	return nil
 }
 
-const loadAuthorizeSQL = "SELECT client, code, expires_in, scope, redirect_uri, state, created_at, extra FROM authorize WHERE code=? LIMIT 1"
+const loadAuthorizeSQL = `SELECT
+    a.code a_code, expires_in, scope, a.redirect_uri a_redirect_uri, state, created_at, a.extra a_extra,
+    c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra
+FROM authorize a
+inner join clients c on a.client = c.code
+WHERE a.code = ? LIMIT 1;`
 
 func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.AuthorizeData, error) {
 	var a *osin.AuthorizeData
@@ -354,12 +359,18 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 	}
 	defer rows.Close()
 
-	var clientID string
-	var userData sql.NullString
 	for rows.Next() {
 		a = new(osin.AuthorizeData)
+		c := new(osin.DefaultClient)
+		var aUserData sql.NullString
+		var cUserData sql.NullString
 		var createdAt string
-		err = rows.Scan(&clientID, &a.Code, &a.ExpiresIn, &a.Scope, &a.RedirectUri, &a.State, &createdAt, &userData)
+		/*
+			a.code a_code, expires_in, scope, a.redirect_uri a_redirect_uri, state, created_at, a.extra a_extra,
+			c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra
+		*/
+		err = rows.Scan(&a.Code, &a.ExpiresIn, &a.Scope, &a.RedirectUri, &a.State, &createdAt, &aUserData,
+			&c.Id, &c.RedirectUri, &c.Secret, &cUserData)
 		if err != nil {
 			return nil, errors.Annotatef(err, "unable to load authorize data")
 		}
@@ -368,19 +379,19 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 		if !a.CreatedAt.IsZero() && a.ExpireAt().Before(time.Now().UTC()) {
 			return nil, errors.Errorf("Token expired at %s.", a.ExpireAt().String())
 		}
-		if userData.Valid {
-			a.UserData = vocab.IRI(userData.String)
+		if aUserData.Valid {
+			a.UserData = vocab.IRI(aUserData.String)
+		}
+		if cUserData.Valid {
+			c.UserData = cUserData.String
+		}
+		if len(c.Id) > 0 {
+			a.Client = c
 		}
 		break
 	}
 	if a == nil {
 		return nil, errors.NotFoundf("unable to load authorize data")
-	}
-
-	if len(clientID) > 0 {
-		if client, err := getClient(conn, ctx, clientID); err == nil {
-			a.Client = client
-		}
 	}
 
 	return a, nil
@@ -444,7 +455,9 @@ func (r *repo) SaveAccess(data *osin.AccessData) error {
 		return err
 	}
 
-	ctx, _ := context.WithTimeout(context.TODO(), defaultTimeout)
+	ctx, cancelFn := context.WithTimeout(context.TODO(), defaultTimeout)
+	defer cancelFn()
+
 	params := []interface{}{
 		data.Client.GetId(),
 		authorizeData.Code,
@@ -477,25 +490,41 @@ func (r *repo) SaveAccess(data *osin.AccessData) error {
 	return nil
 }
 
-const loadAccessSQL = `SELECT client, authorize, previous, token, refresh_token, expires_in, scope, redirect_uri, created_at, extra 
-	FROM access WHERE token=? LIMIT 1`
+const loadAccessSQL = `SELECT 
+	acc.token acc_token, acc.refresh_token acc_refresh_token, acc.expires_in acc_expires_in, acc.scope acc_scope, acc.redirect_uri acc_redirect_uri, acc.created_at acc_created_at, acc.extra acc_extra, acc.previous as acc_previous,
+	auth.code auth_code, auth.expires_in auth_expires_in,  auth.scope auth_scope, auth.redirect_uri auth_redirect_uri, auth.state auth_state, auth.created_at auth_created_at, auth.extra auth_extra,
+	c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra
+	FROM access acc
+	inner join clients c on acc.client = c.code
+	left join authorize auth on acc.authorize = auth.code
+WHERE acc.token = ? LIMIT 1`
 
-func loadAccess(conn *sql.DB, ctx context.Context, code string) (*osin.AccessData, error) {
-	var a *osin.AccessData
+func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (*osin.AccessData, error) {
 	rows, err := conn.QueryContext(ctx, loadAccessSQL, code)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errors.NewNotFound(err, "Unable to load access token")
-	} else if err != nil {
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.NewNotFound(err, "Unable to load access token")
+		}
 		return nil, errors.Annotatef(err, "Unable to load access token")
 	}
 	defer rows.Close()
 
-	var createdAt string
-	var client, authorize, prev, userData sql.NullString
 	for rows.Next() {
-		a = new(osin.AccessData)
-		err = rows.Scan(&client, &authorize, &prev, &a.AccessToken, &a.RefreshToken, &a.ExpiresIn, &a.Scope,
-			&a.RedirectUri, &createdAt, &userData)
+		acc := new(osin.AccessData)
+		c := new(osin.DefaultClient)
+		auth := new(osin.AuthorizeData)
+		var accUserData, authUserData, cUserData, accPrevious sql.NullString
+		var accCreatedAt, authCreatedAt string
+		/*
+			acc.token acc_token, acc.refresh_token acc_refresh_token, acc.expires_in acc_expires_in, acc.scope acc_scope, acc.redirect_uri acc_redirect_uri, acc.created_at acc_created_at, acc.extra acc_extra,
+			auth.code auth_code, auth.expires_in auth_expires_in,  auth.scope auth_scope, auth.redirect_uri auth_redirect_uri, auth.state auth_state, auth.created_at auth_created_at, auth.extra auth_extra,
+			c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra,
+		*/
+		err = rows.Scan(&acc.AccessToken, &acc.RefreshToken, &acc.ExpiresIn, &acc.Scope, &acc.RedirectUri, &accCreatedAt, &accUserData, &accPrevious,
+			&auth.Code, &auth.ExpiresIn, &auth.Scope, &auth.RedirectUri, &auth.State, &authCreatedAt, &authUserData,
+			&c.Id, &c.RedirectUri, &c.Secret, &cUserData,
+		)
+
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, errors.NewNotFound(err, "Unable to load access data")
@@ -503,36 +532,43 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string) (*osin.AccessDat
 			return nil, errors.Annotatef(err, "unable to load access data")
 		}
 
-		a.CreatedAt, _ = time.Parse(time.RFC3339Nano, createdAt)
-		if !a.CreatedAt.IsZero() && a.ExpireAt().Before(time.Now().UTC()) {
-			return nil, errors.Errorf("Token expired at %s.", a.ExpireAt().String())
+		acc.CreatedAt, _ = time.Parse(time.RFC3339Nano, accCreatedAt)
+		if !acc.CreatedAt.IsZero() && acc.ExpireAt().Before(time.Now().UTC()) {
+			return nil, errors.Errorf("Token expired at %s.", acc.ExpireAt().String())
 		}
-		break
-	}
-	if a == nil {
-		return nil, errors.NotFoundf("unable to load access data")
-	}
+		if len(authCreatedAt) > 0 {
+			auth.CreatedAt, _ = time.Parse(time.RFC3339Nano, authCreatedAt)
+		}
 
-	if client.Valid {
-		if client, err := getClient(conn, ctx, client.String); err == nil {
-			a.Client = client
+		if accUserData.Valid {
+			acc.UserData = vocab.IRI(accUserData.String)
 		}
-	}
-	if authorize.Valid {
-		if authData, err := loadAuthorize(conn, ctx, authorize.String); err == nil {
-			a.AuthorizeData = authData
+		if authUserData.Valid {
+			auth.UserData = vocab.IRI(authUserData.String)
 		}
-	}
-	if prev.Valid {
-		if prevAccess, err := loadAccess(conn, ctx, prev.String); err == nil {
-			a.AccessData = prevAccess
+		if cUserData.Valid {
+			c.UserData = cUserData.String
 		}
+		if loadDeps {
+			if accPrevious.Valid {
+				prev, _ := loadAccess(conn, ctx, accPrevious.String, false)
+				if prev != nil {
+					acc.AccessData = prev
+				}
+			}
+			if len(auth.Code) > 0 {
+				acc.AuthorizeData = auth
+			}
+		}
+		if len(c.Id) > 0 {
+			acc.Client = c
+			if acc.AuthorizeData != nil {
+				acc.AuthorizeData.Client = c
+			}
+		}
+		return acc, nil
 	}
-	if userData.Valid {
-		a.UserData = vocab.IRI(userData.String)
-	}
-
-	return a, nil
+	return nil, errors.NotFoundf("unable to load access data")
 }
 
 var ReadOnlyTxn = sql.TxOptions{
@@ -552,7 +588,7 @@ func (r *repo) LoadAccess(code string) (*osin.AccessData, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancelFn()
 
-	return loadAccess(r.conn, ctx, code)
+	return loadAccess(r.conn, ctx, code, true)
 }
 
 const removeAccess = "DELETE FROM access WHERE token=?"
@@ -593,7 +629,7 @@ func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
 		return nil, errors.Annotatef(err, "Unable to load refresh token")
 	}
 
-	return loadAccess(r.conn, ctx, access.String)
+	return loadAccess(r.conn, ctx, access.String, true)
 }
 
 const removeRefresh = "DELETE FROM refresh WHERE token=?"

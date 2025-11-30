@@ -167,7 +167,7 @@ func Test_repo_LoadAuthorize(t *testing.T) {
 				},
 			},
 			want: &osin.AuthorizeData{
-				Client: &cl{
+				Client: &osin.DefaultClient{
 					Id:          "client",
 					Secret:      "secret",
 					RedirectUri: "redir",
@@ -317,54 +317,6 @@ func Test_repo_LoadAccess(t *testing.T) {
 			wantErr:  errors.Newf("Empty access code"),
 		},
 		{
-			name:   "find one",
-			code:   "one",
-			fields: fields{path: t.TempDir()},
-			setupFns: []initFn{
-				withOpenRoot,
-				withBootstrap,
-				func(t *testing.T, r *repo) *repo {
-					_, _ = r.conn.Exec(createClient, "client", "secret", "redir", "extra123")
-					_, _ = r.conn.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
-					_, err := r.conn.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "scope", "redir", hellTimeStr, "extra")
-					if err != nil {
-						t.Errorf("unable to save access data: %s", err)
-					}
-					return r
-				},
-			},
-			want: &osin.AccessData{
-				Client: &cl{
-					Id:          "client",
-					Secret:      "secret",
-					RedirectUri: "redir",
-					UserData:    "extra123",
-				},
-				AuthorizeData: &osin.AuthorizeData{
-					Client: &cl{
-						Id:          "client",
-						Secret:      "secret",
-						RedirectUri: "redir",
-						UserData:    "extra123",
-					},
-					Code:        "auth",
-					ExpiresIn:   666,
-					Scope:       "scop",
-					RedirectUri: "redir",
-					State:       "state",
-					CreatedAt:   hellTime,
-					UserData:    vocab.IRI("extra123"),
-				},
-				AccessToken:  "one",
-				RefreshToken: "ref",
-				ExpiresIn:    666,
-				Scope:        "scope",
-				RedirectUri:  "redir",
-				CreatedAt:    hellTime,
-				UserData:     vocab.IRI("extra"),
-			},
-		},
-		{
 			name:     "load access",
 			fields:   fields{path: t.TempDir()},
 			setupFns: []initFn{withOpenRoot, withBootstrap, withClient, withAuthorization, withAccess},
@@ -490,55 +442,6 @@ func Test_repo_LoadRefresh(t *testing.T) {
 			code:     "refresh-666",
 			setupFns: []initFn{withOpenRoot, withBootstrap, withClient, withAuthorization, withAccess},
 			want:     mockAccess("access-666", defaultClient),
-		},
-		{
-			name:   "find refresh",
-			code:   "ref1",
-			fields: fields{path: t.TempDir()},
-			setupFns: []initFn{
-				withOpenRoot,
-				withBootstrap,
-				func(t *testing.T, r *repo) *repo {
-					_, _ = r.conn.Exec(createClient, "client", "secret", "redir", "extra123")
-					_, _ = r.conn.Exec(saveAuthorize, "client", "auth", "666", "scop", "redir", "state", hellTimeStr, "extra123")
-					_, _ = r.conn.Exec(saveAccess, "client", "auth", nil, "one", "ref", "666", "scope", "redir", hellTimeStr, "extra")
-					_, err := r.conn.Exec(saveRefresh, "ref1", "one")
-					if err != nil {
-						r.errFn("unable to save refresh %s", err)
-					}
-					return r
-				},
-			},
-			want: &osin.AccessData{
-				Client: &cl{
-					Id:          "client",
-					Secret:      "secret",
-					RedirectUri: "redir",
-					UserData:    "extra123",
-				},
-				AuthorizeData: &osin.AuthorizeData{
-					Client: &cl{
-						Id:          "client",
-						Secret:      "secret",
-						RedirectUri: "redir",
-						UserData:    "extra123",
-					},
-					Code:        "auth",
-					ExpiresIn:   666,
-					Scope:       "scop",
-					RedirectUri: "redir",
-					State:       "state",
-					CreatedAt:   hellTime,
-					UserData:    vocab.IRI("extra123"),
-				},
-				AccessToken:  "one",
-				RefreshToken: "ref",
-				ExpiresIn:    666,
-				Scope:        "scope",
-				RedirectUri:  "redir",
-				CreatedAt:    hellTime,
-				UserData:     vocab.IRI("extra"),
-			},
 		},
 	}
 

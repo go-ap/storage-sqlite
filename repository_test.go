@@ -99,7 +99,7 @@ func Test_repo_Load(t *testing.T) {
 			name: "empty",
 			root: rootActor,
 			arg:  "",
-			err:  errors.NotFoundf("Not found"),
+			err:  errors.NotFoundf("not found"),
 		},
 		{
 			name: "load object with just an ID",
@@ -250,39 +250,37 @@ func Test_repo_Load(t *testing.T) {
 
 func Test_repo_Save(t *testing.T) {
 	tests := []struct {
-		name string
-		root vocab.Item
-		arg  vocab.Item
-		want vocab.Item
-		err  error
+		name    string
+		root    vocab.Item
+		arg     vocab.Item
+		want    vocab.Item
+		wantErr error
 	}{
 		{
-			name: "empty",
-			root: rootActor,
-			arg:  nil,
-			want: nil,
-			err:  nil,
+			name:    "empty",
+			root:    rootActor,
+			wantErr: errors.Newf("Unable to save nil element"),
 		},
 		{
-			name: "save object",
-			root: rootActor,
-			arg:  vocab.Object{ID: "https://example.com/1"},
-			want: vocab.Object{ID: "https://example.com/1"},
-			err:  nil,
+			name:    "save object",
+			root:    rootActor,
+			arg:     vocab.Object{ID: "https://example.com/1"},
+			want:    vocab.Object{ID: "https://example.com/1"},
+			wantErr: nil,
 		},
 		{
-			name: "save activity",
-			root: rootActor,
-			arg:  vocab.Activity{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
-			want: vocab.Activity{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
-			err:  nil,
+			name:    "save activity",
+			root:    rootActor,
+			arg:     vocab.Activity{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
+			want:    vocab.Activity{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
+			wantErr: nil,
 		},
 		{
-			name: "save another actor",
-			root: rootActor,
-			arg:  vocab.Actor{ID: "https://example.com/actors/1", Type: vocab.GroupType},
-			want: vocab.Actor{ID: "https://example.com/actors/1", Type: vocab.GroupType},
-			err:  nil,
+			name:    "save another actor",
+			root:    rootActor,
+			arg:     vocab.Actor{ID: "https://example.com/actors/1", Type: vocab.GroupType},
+			want:    vocab.Actor{ID: "https://example.com/actors/1", Type: vocab.GroupType},
+			wantErr: nil,
 		},
 	}
 	for _, tt := range tests {
@@ -295,7 +293,9 @@ func Test_repo_Save(t *testing.T) {
 			defer r.Close()
 
 			got, err := r.Save(tt.arg)
-			checkErrorsEqual(t, tt.err, err)
+			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
+				t.Errorf("Save() error got %v expected %v", err, tt.wantErr)
+			}
 
 			be.DeepEqual[vocab.Item](t, got, tt.want)
 		})
@@ -808,7 +808,7 @@ func Test_repo_RemoveFrom(t *testing.T) {
 		{
 			name:     "empty",
 			path:     t.TempDir(),
-			setupFns: []initFn{withOpenRoot},
+			setupFns: []initFn{withOpenRoot, withBootstrap},
 			args:     args{},
 			wantErr:  errors.NotFoundf("Unable to load root bucket"),
 		},
@@ -835,7 +835,7 @@ func Test_repo_RemoveFrom(t *testing.T) {
 		{
 			name:     "item exists in ordered collection",
 			path:     t.TempDir(),
-			setupFns: []initFn{withOpenRoot, withOrderedCollectionHavingItems},
+			setupFns: []initFn{withOpenRoot, withBootstrap, withOrderedCollectionHavingItems},
 			args: args{
 				colIRI: "https://example.com/followers",
 				it:     vocab.IRI("https://example.com"),
@@ -845,7 +845,7 @@ func Test_repo_RemoveFrom(t *testing.T) {
 		{
 			name:     "item doesn't exist in collection",
 			path:     t.TempDir(),
-			setupFns: []initFn{withOpenRoot, withCollection("https://example.com/followers")},
+			setupFns: []initFn{withOpenRoot, withBootstrap, withCollection("https://example.com/followers")},
 			args: args{
 				colIRI: "https://example.com/followers",
 				it:     vocab.IRI("https://example.com"),
@@ -855,7 +855,7 @@ func Test_repo_RemoveFrom(t *testing.T) {
 		{
 			name:     "item exists in collection",
 			path:     t.TempDir(),
-			setupFns: []initFn{withOpenRoot, withCollectionHavingItems},
+			setupFns: []initFn{withOpenRoot, withBootstrap, withCollectionHavingItems},
 			args: args{
 				colIRI: "https://example.com/followers",
 				it:     vocab.IRI("https://example.com"),
@@ -1016,6 +1016,8 @@ func Test_repo_AddTo1(t *testing.T) {
 			err := r.AddTo(tt.args.colIRI, tt.args.it)
 			if !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
 				t.Errorf("AddTo() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr != nil {
 				return
 			}
 
@@ -1279,13 +1281,13 @@ func Test_repo_Delete1(t *testing.T) {
 		},
 		{
 			name:     "empty item won't return an error",
-			setupFns: []initFn{withOpenRoot},
+			setupFns: []initFn{withOpenRoot, withBootstrap},
 			fields:   fields{path: t.TempDir()},
 		},
 		{
 			name:     "delete item collection",
 			fields:   fields{path: t.TempDir()},
-			setupFns: []initFn{withOpenRoot, withItems(mockItems)},
+			setupFns: []initFn{withOpenRoot, withBootstrap, withItems(mockItems)},
 			it:       mockItems,
 		},
 	}
@@ -1293,7 +1295,7 @@ func Test_repo_Delete1(t *testing.T) {
 		tests = append(tests, test{
 			name:     fmt.Sprintf("delete %d %T from repo", i, mockIt),
 			fields:   fields{path: t.TempDir()},
-			setupFns: []initFn{withOpenRoot, withMockItems},
+			setupFns: []initFn{withOpenRoot, withBootstrap, withMockItems},
 			it:       mockIt,
 		})
 	}
