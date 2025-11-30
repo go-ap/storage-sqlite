@@ -9,11 +9,15 @@ environment:
   GO111MODULE: 'on'
 tasks:
   - tests: |
-      cd storage-sqlite && make test
+      cd storage-sqlite
+      CGO_ENABLED=1 make test
+      CGO_ENABLED=0 make test
   - conformance-suite: |
       cd storage-sqlite
-      go test -tags conformance -count=1 -json . | go run github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt -showteststatus
+      CGO_ENABLED=1 go test -tags conformance -count=1 -json . | go run github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt -showteststatus
+      CGO_ENABLED=0 go test -tags conformance -count=1 -json . | go run github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt -showteststatus
   - coverage: |
       cd storage-sqlite
       git switch -C master origin/master
-      go run github.com/mattn/goveralls@latest -tags conformance -flagname unit-tests -service=${CI_NAME} -repotokenfile ~/.coveralls.tok
+      CGO_ENABLED=1 go run github.com/mattn/goveralls@latest -tags conformance -flagname unit-tests-cgo -service=${CI_NAME} -repotokenfile ~/.coveralls.tok
+      CGO_ENABLED=0 go run github.com/mattn/goveralls@latest -tags conformance -flagname unit-tests-no-cgo -service=${CI_NAME} -repotokenfile ~/.coveralls.tok
