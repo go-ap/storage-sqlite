@@ -234,7 +234,6 @@ func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
 	rows, err := r.conn.Query(colSel, col.GetLink())
 	if err != nil {
-		r.errFn("query error: %s\n%s\n%#v", err, colSel)
 		return errors.NotFoundf("Unable to load %s", col.GetLink())
 	}
 	defer rows.Close()
@@ -281,7 +280,7 @@ func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
 	query := "UPDATE collections SET raw = ?, items = ? WHERE iri = ?;"
 	_, err = r.conn.Exec(query, raw, rawItems, c.GetLink())
 	if err != nil {
-		r.errFn("query error: %s\n%s\n%s", err, query, c.GetLink())
+		r.errFn("query error: %s\n%s\n%s", err, stringClean(query), c.GetLink())
 		return errors.Annotatef(err, "query error")
 	}
 
@@ -440,22 +439,6 @@ func getFullPath(c Config) (string, error) {
 	return path.Join(c.Path, dbFile), nil
 }
 
-func getAbsStoragePath(p string) (string, error) {
-	if !filepath.IsAbs(p) {
-		var err error
-		p, err = filepath.Abs(p)
-		if err != nil {
-			return "", err
-		}
-	}
-	if fi, err := os.Stat(p); err != nil {
-		return "", err
-	} else if !fi.IsDir() {
-		return "", errors.NotValidf("path %s is invalid for storage", p)
-	}
-	return p, nil
-}
-
 func mkDirIfNotExists(p string) error {
 	fi, err := os.Stat(p)
 	if err != nil && os.IsNotExist(err) {
@@ -493,16 +476,19 @@ func isSingleItem(f ...filters.Check) bool {
 }
 
 func stripFiltersFromIRI(iri vocab.IRI) vocab.IRI {
-	u, _ := iri.URL()
+	u, err := iri.URL()
+	if err != nil {
+		return iri
+	}
 	u.RawQuery = ""
 	return vocab.IRI(u.String())
 }
 
 func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface, error) {
-	conn := r.conn
-	// NOTE(marius): this doesn't seem to be working, our filter is never an IRI or Item
 	if isSingleItem(f...) {
-		f = filters.Checks{filters.SameID(iri)}
+		if len(f) == 0 {
+			f = filters.Checks{filters.SameID(iri)}
+		}
 		if r.cache != nil {
 			if cachedIt := r.cache.Load(iri); cachedIt != nil {
 				return &vocab.ItemCollection{cachedIt}, nil
@@ -510,17 +496,11 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 		}
 	}
 
+	conn := r.conn
 	selects := make([]string, 0)
 	params := make([]any, 0)
 	for _, table := range []string{"actors", "objects", "activities"} {
 		clauses, values := filters.GetWhereClauses(f...)
-		if isStorageCollectionIRI(iri) {
-			clauses = append(clauses, `iri like ?`)
-			values = append(values, stripFiltersFromIRI(iri)+"%")
-		}
-		if len(clauses) == 0 {
-			clauses = []string{"true"}
-		}
 		selects = append(selects, fmt.Sprintf("SELECT iri, raw, published FROM %s WHERE %s", table, strings.Join(clauses, " AND ")))
 		params = append(params, values...)
 	}
@@ -535,7 +515,7 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 	rows, err := conn.Query(sel, params...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return nil, errors.NotFoundf("no rows found")
 		}
 		return nil, errors.Annotatef(err, "unable to run select")
 	}
@@ -545,8 +525,7 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 	for rows.Next() {
 		var iri string
 		var raw []byte
-		err = rows.Scan(&iri, &raw)
-		if err != nil {
+		if err = rows.Scan(&iri, &raw); err != nil {
 			return &ret, errors.Annotatef(err, "scan values error")
 		}
 
@@ -596,9 +575,6 @@ func iriPath(iri vocab.IRI) string {
 	if p := u.Path; p != "" && p != "/" {
 		pieces = append(pieces, p)
 	}
-	//if u.ForceQuery || u.RawQuery != "" {
-	//	pieces = append(pieces, url.PathEscape(u.RawQuery))
-	//}
 	if u.Fragment != "" {
 		pieces = append(pieces, url.PathEscape(u.Fragment))
 	}

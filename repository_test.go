@@ -1308,3 +1308,39 @@ func Test_repo_Delete1(t *testing.T) {
 		})
 	}
 }
+
+func Test_stripFiltersFromIRI(t *testing.T) {
+	tests := []struct {
+		name string
+		iri  vocab.IRI
+		want vocab.IRI
+	}{
+		{
+			name: "empty",
+			iri:  "",
+			want: "",
+		},
+		{
+			name: "non full url string",
+			iri:  "example.com",
+			want: "example.com",
+		},
+		{
+			name: "just query",
+			iri:  "?foo=1&bar=test",
+			want: "",
+		},
+		{
+			name: "full url with query",
+			iri:  "https://example.com/foo/bar/?foo=1&bar=test",
+			want: "https://example.com/foo/bar/",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripFiltersFromIRI(tt.iri); got != tt.want {
+				t.Errorf("stripFiltersFromIRI() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

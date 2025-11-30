@@ -166,3 +166,50 @@ func TestClean(t *testing.T) {
 		})
 	}
 }
+
+func Test_repo_Reset(t *testing.T) {
+	tests := []struct {
+		name     string
+		fields   fields
+		setupFns []initFn
+	}{
+		{
+			name:   "empty",
+			fields: fields{},
+		},
+		{
+			name: "not empty",
+			fields: fields{
+				path: t.TempDir(),
+			},
+			setupFns: []initFn{withOpenRoot, withBootstrap, withMockItems, withClient, withAccess, withAuthorization},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := mockRepo(t, tt.fields, tt.setupFns...)
+			t.Cleanup(r.Close)
+
+			r.Reset()
+
+			for _, table := range tables {
+				if r.conn == nil {
+					continue
+				}
+				var count sql.NullInt32
+				err := r.conn.QueryRow("select count(*) FROM ? WHERE true", table).Scan(&count)
+				if err != nil {
+					t.Errorf("Reset() left table in invalid state: %s", err)
+					return
+				}
+				if !count.Valid {
+					t.Errorf("Reset() left table in invalid state: %v", count)
+					return
+				}
+				if count.Int32 > 0 {
+					t.Errorf("Reset() left table with existing rows: %d", count.Int32)
+				}
+			}
+		})
+	}
+}

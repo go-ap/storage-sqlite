@@ -52,7 +52,7 @@ func Bootstrap(conf Config) error {
 	exec := func(qRaw string, par ...interface{}) error {
 		qSql := fmt.Sprintf(qRaw, par...)
 		if _, err = r.conn.Exec(qSql); err != nil {
-			return errors.Annotatef(err, `unable to execute: "%s"`, strings.ReplaceAll(qSql, "\n", ""))
+			return errors.Annotatef(err, `unable to execute: "%s"`, stringClean(qSql))
 		}
 		return nil
 	}
@@ -91,23 +91,26 @@ func Bootstrap(conf Config) error {
 	return nil
 }
 
-func (r *repo) Reset() {
-	tables := []string{
-		"objects",
-		"actors",
-		"activities",
-		"collections",
-		"meta",
-		"clients",
-		"authorize",
-		"access",
-		"refresh",
-	}
+var tables = []string{
+	"objects",
+	"actors",
+	"activities",
+	"collections",
+	"meta",
+	"clients",
+	"authorize",
+	"access",
+	"refresh",
+}
 
-	_ = r.Open()
+func (r *repo) Reset() {
+	err := r.Open()
+	if err != nil {
+		return
+	}
 	defer r.close()
 
 	for _, table := range tables {
-		_, _ = r.conn.Exec(fmt.Sprintf("DELETE FROM %s;", table))
+		_, _ = r.conn.Exec("DELETE FROM ?", table)
 	}
 }
