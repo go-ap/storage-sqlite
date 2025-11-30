@@ -12,7 +12,6 @@ import (
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/errors"
 	"github.com/google/go-cmp/cmp"
-	"github.com/mattn/go-sqlite3"
 )
 
 func checkInsertedValue(t *testing.T, db *sql.DB, actor vocab.Item) {
@@ -96,7 +95,7 @@ func TestBootstrap(t *testing.T) {
 			name: "forbidden",
 			arg:  Config{Path: forbiddenPath},
 			wantErr: errors.Annotatef(
-				sqlite3.ErrPerm,
+				&Error{},
 				`unable to execute: "CREATE TABLE IF NOT EXISTS objects (  "raw" BLOB,  "iri" TEXT NOT NULL constraint objects_key unique,  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,  "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,  "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,  "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,  "summary" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.summary')) VIRTUAL,  "content" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.content')) VIRTUAL) STRICT;CREATE INDEX objects_type ON objects(type);CREATE INDEX objects_name ON objects(name);CREATE INDEX objects_content ON objects(content);CREATE INDEX objects_published ON objects(published);CREATE INDEX objects_updated ON objects(updated);"`,
 			),
 		},

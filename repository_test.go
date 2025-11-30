@@ -13,7 +13,6 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
 	"github.com/google/go-cmp/cmp"
-	"github.com/mattn/go-sqlite3"
 )
 
 func bootstrap(t *testing.T, base string) {
@@ -1074,8 +1073,7 @@ func Test_repo_Load_UnhappyPath(t *testing.T) {
 			name:     "not bootstrapped",
 			args:     args{iri: "https://example.com"},
 			setupFns: []initFn{withOpenRoot},
-			//wantErr:  ErrorInvalidRoot(nil),
-			wantErr: errors.Annotatef(sqlite3.Error{Code: sqlite3.ErrInternal}, "unable to run select"),
+			wantErr:  errors.Annotatef(&Error{}, "unable to run select"),
 		},
 		{
 			name:     "empty iri gives us not found",

@@ -6,8 +6,16 @@ import (
 	"database/sql"
 	"net/url"
 
+	"github.com/mattn/go-sqlite3"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+var (
+	ErrPerm     = sqlite3.ErrPerm
+	ErrInternal = sqlite3.ErrInternal
+)
+
+type Error = sqlite3.Error
 
 var defaultQueryParam = url.Values{
 	"_txlock": []string{"immediate"},

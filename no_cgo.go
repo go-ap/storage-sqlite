@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"net/url"
 
+	"modernc.org/sqlite"
 	_ "modernc.org/sqlite"
 )
 
@@ -23,6 +24,8 @@ var defaultQueryParam = url.Values{
 		//"wal_autocheckpoint=0",
 	},
 }
+
+type Error = sqlite.Error
 
 // sqlOpen will use the learnc.org/sqlite when compiled without CGO
 // this driver is less performant.
