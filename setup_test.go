@@ -331,6 +331,7 @@ func withGeneratedMocks(t *testing.T, r *repo) *repo {
 		ob := conformance.RandomObject(parent)
 		_ = vocab.OnObject(ob, func(object *vocab.Object) error {
 			object.Published = publishedTime
+			object.Tag = vocab.ItemCollection{conformance.RandomTag(parent)}
 			return idSetter(object)
 		})
 		_ = objects.Append(ob)

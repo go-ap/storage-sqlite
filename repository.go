@@ -696,7 +696,8 @@ func keepActor(f ...filters.Check) func(act *vocab.Activity, ob vocab.Item) bool
 func keepTarget(f ...filters.Check) func(act *vocab.Activity, ob vocab.Item) bool {
 	return func(act *vocab.Activity, ob vocab.Item) bool {
 		var keep bool
-		if act.Target.GetLink().Equals(ob.GetLink(), false) {
+		target := act.Target
+		if !vocab.IsNil(target) && target.GetLink().Equals(ob.GetLink(), false) {
 			act.Target = ob
 			keep = !vocab.IsNil(filters.Checks(f).Run(act.Target))
 		}
@@ -704,7 +705,8 @@ func keepTarget(f ...filters.Check) func(act *vocab.Activity, ob vocab.Item) boo
 	}
 }
 
-func loadTagsForObject(r *repo, _ ...filters.Check) func(o *vocab.Object) error {
+func loadTagsForObject(r *repo, ff ...filters.Check) func(o *vocab.Object) error {
+	tf := filters.TagChecks(ff...)
 	return func(o *vocab.Object) error {
 		if len(o.Tag) == 0 {
 			return nil
@@ -714,7 +716,7 @@ func loadTagsForObject(r *repo, _ ...filters.Check) func(o *vocab.Object) error 
 				if vocab.IsNil(t) || !vocab.IsIRI(t) {
 					return nil
 				}
-				if ob, err := loadFromOneTable(r, t.GetLink(), "objects"); err == nil {
+				if ob, err := loadFromOneTable(r, t.GetLink(), "objects", tf...); err == nil {
 					(*col)[i] = ob.Collection().First()
 				}
 			}
@@ -1021,6 +1023,8 @@ func delete(l repo, it vocab.Item) error {
 
 	table := string(filters.ObjectsType)
 	if vocab.ActivityTypes.Contains(it.GetType()) {
+		table = string(filters.ActivitiesType)
+	} else if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
 		table = string(filters.ActivitiesType)
 	} else if vocab.ActorTypes.Contains(it.GetType()) {
 		table = string(filters.ActorsType)
