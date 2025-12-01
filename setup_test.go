@@ -119,17 +119,22 @@ func withOpenRoot(t *testing.T, r *repo) *repo {
 	return r
 }
 
-var mockItems = vocab.ItemCollection{
-	vocab.IRI("https://example.com/plain-iri"),
-	&vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType},
-	&vocab.Link{ID: "https://example.com/1", Href: "https://example.com/1", Type: vocab.LinkType},
-	&vocab.Actor{ID: "https://example.com/~jdoe", Type: vocab.PersonType},
-	&vocab.Activity{ID: "https://example.com/~jdoe/1", Type: vocab.UpdateType},
-	&vocab.Object{ID: "https://example.com/~jdoe/tag-none", Type: vocab.UpdateType},
-	&vocab.Question{ID: "https://example.com/~jdoe/2", Type: vocab.QuestionType},
-	&vocab.IntransitiveActivity{ID: "https://example.com/~jdoe/3", Type: vocab.ArriveType},
-}
 var (
+	mockItems = vocab.ItemCollection{
+		vocab.IRI("https://example.com/plain-iri"),
+		&vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType},
+		&vocab.Place{ID: "https://example.com/arctic", Type: vocab.PlaceType},
+		//&vocab.Profile{ID: "https://example.com/~jdoe/profile", Type: vocab.ProfileType},
+		&vocab.Link{ID: "https://example.com/1", Href: "https://example.com/1", Type: vocab.LinkType},
+		&vocab.Actor{ID: "https://example.com/~jdoe", Type: vocab.PersonType},
+		&vocab.Activity{ID: "https://example.com/~jdoe/1", Type: vocab.UpdateType},
+		&vocab.Object{ID: "https://example.com/~jdoe/tag-none", Type: vocab.UpdateType},
+		&vocab.Question{ID: "https://example.com/~jdoe/2", Type: vocab.QuestionType},
+		&vocab.IntransitiveActivity{ID: "https://example.com/~jdoe/3", Type: vocab.ArriveType},
+		&vocab.Tombstone{ID: "https://example.com/objects/1", Type: vocab.TombstoneType},
+		&vocab.Tombstone{ID: "https://example.com/actors/f00", Type: vocab.TombstoneType},
+	}
+
 	pk, _      = rsa.GenerateKey(rand.Reader, 4096)
 	pkcs8Pk, _ = x509.MarshalPKCS8PrivateKey(pk)
 	key        = pem.EncodeToMemory(&pem.Block{
@@ -170,7 +175,7 @@ func withMetadataJDoe(t *testing.T, r *repo) *repo {
 	}
 
 	if err := r.SaveMetadata("https://example.com/~jdoe", m); err != nil {
-		r.errFn("unable to save metadata for jdoe: %s", err)
+		t.Errorf("unable to save metadata for jdoe: %s", err)
 	}
 	return r
 }
@@ -229,17 +234,17 @@ func withClient(t *testing.T, r *repo) *repo {
 
 func withAuthorization(t *testing.T, r *repo) *repo {
 	if err := r.SaveAuthorize(mockAuth("test-code", defaultClient)); err != nil {
-		r.errFn("failed to create authorization data: %s", err)
+		t.Errorf("failed to create authorization data: %s", err)
 	}
 	return r
 }
 
 func withAccess(t *testing.T, r *repo) *repo {
 	if err := r.SaveAccess(mockAccess("refresh-666", defaultClient)); err != nil {
-		r.errFn("failed to create access data: %s", err)
+		t.Errorf("failed to create access data: %s", err)
 	}
 	if err := r.SaveAccess(mockAccess("access-666", defaultClient)); err != nil {
-		r.errFn("failed to create access data: %s", err)
+		t.Errorf("failed to create access data: %s", err)
 	}
 	return r
 }
@@ -268,7 +273,7 @@ var (
 func withGeneratedRoot(root vocab.Item) initFn {
 	return func(t *testing.T, r *repo) *repo {
 		if _, err := r.Save(root); err != nil {
-			r.errFn("unable to save root service: ", err)
+			t.Errorf("unable to save root service: %s", err)
 		}
 		return r
 	}
@@ -278,7 +283,7 @@ func withGeneratedItems(items vocab.ItemCollection) initFn {
 	return func(t *testing.T, r *repo) *repo {
 		for _, it := range items {
 			if _, err := save(r, it); err != nil {
-				r.errFn("unable to save %T[%s]: %err", it, it.GetLink, err)
+				t.Errorf("unable to save %T[%s]: %s", it, it.GetLink(), err)
 			}
 		}
 		return r

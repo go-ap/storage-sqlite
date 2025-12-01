@@ -1317,6 +1317,24 @@ func Test_repo_Save1(t *testing.T) {
 	}
 }
 
+func withDeleteObject(it vocab.Item) initFn {
+	return func(t *testing.T, r *repo) *repo {
+		if err := r.Delete(it); err != nil {
+			t.Errorf("unable to delete item %s: %s", it.GetLink(), err)
+		}
+		return r
+	}
+}
+
+func withDeleteActor(it vocab.Item) initFn {
+	return func(t *testing.T, r *repo) *repo {
+		if err := r.Delete(it); err != nil {
+			t.Errorf("unable to delete item %s: %s", it.GetLink(), err)
+		}
+		return r
+	}
+}
+
 func Test_repo_Delete1(t *testing.T) {
 	type test struct {
 		name     string
@@ -1341,6 +1359,18 @@ func Test_repo_Delete1(t *testing.T) {
 			fields:   fields{path: t.TempDir()},
 			setupFns: []initFn{withOpenRoot, withBootstrap, withItems(mockItems)},
 			it:       mockItems,
+		},
+		{
+			name:     "delete object",
+			fields:   fields{path: t.TempDir()},
+			setupFns: []initFn{withOpenRoot, withBootstrap, withItems(mockItems)},
+			it:       vocab.IRI("https://example.com/objects/1"),
+		},
+		{
+			name:     "delete actor",
+			fields:   fields{path: t.TempDir()},
+			setupFns: []initFn{withOpenRoot, withBootstrap, withItems(mockItems)},
+			it:       vocab.IRI("https://example.com/actors/f00"),
 		},
 	}
 	for i, mockIt := range mockItems {

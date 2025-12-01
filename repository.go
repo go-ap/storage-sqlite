@@ -1019,24 +1019,7 @@ where %s order by coalesce(x.published, y.published, o.published) desc LIMIT %d`
 
 func delete(l repo, it vocab.Item) error {
 	iri := it.GetLink()
-	cleanupTables := []string{"meta"}
-
-	table := string(filters.ObjectsType)
-	if vocab.ActivityTypes.Contains(it.GetType()) {
-		table = string(filters.ActivitiesType)
-	} else if vocab.IntransitiveActivityTypes.Contains(it.GetType()) {
-		table = string(filters.ActivitiesType)
-	} else if vocab.ActorTypes.Contains(it.GetType()) {
-		table = string(filters.ActorsType)
-	} else if it.GetType() == vocab.TombstoneType {
-		if strings.Contains(iri.String(), string(filters.ActorsType)) {
-			table = string(filters.ActorsType)
-		}
-		if strings.Contains(iri.String(), string(filters.ActivitiesType)) {
-			table = string(filters.ActivitiesType)
-		}
-	}
-	cleanupTables = append(cleanupTables, table)
+	cleanupTables := []string{"meta", "actors", "objects", "activities"}
 
 	removeFn := func(table string, iri vocab.IRI) error {
 		query := fmt.Sprintf("DELETE FROM %s where iri = $1;", table)
@@ -1048,13 +1031,13 @@ func delete(l repo, it vocab.Item) error {
 	}
 
 	for _, tbl := range cleanupTables {
-		if err := removeFn(tbl, it.GetLink()); err != nil {
+		if err := removeFn(tbl, iri); err != nil {
 			return err
 		}
 	}
 
 	if l.cache != nil {
-		l.cache.Delete(it.GetLink())
+		l.cache.Delete(iri)
 	}
 	return nil
 }
