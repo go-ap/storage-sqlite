@@ -7,22 +7,34 @@ MAKEFLAGS += --no-builtin-rules
 
 GO ?= go
 TEST := $(GO) test
-TEST_FLAGS ?= -v
+TEST_FLAGS ?= -v -tags conformance
 TEST_TARGET ?= .
 GO111MODULE = on
 PROJECT_NAME := $(shell basename $(PWD))
 
 .PHONY: test coverage clean download
 
-download:
+download: go.sum
+
+go.sum:
 	$(GO) mod tidy
 
-test: download
-	$(TEST) $(TEST_FLAGS) $(TEST_TARGET)
+test: go.sum clean
+	@touch tests.json
+	CGO_ENABLED=1 $(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json >> tests.json
+	CGO_ENABLED=0 $(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json >> tests.json
+	go run github.com/mfridman/tparse@latest -file tests.json
+	@$(RM) ./tests.json
 
-coverage: TEST_FLAGS = -tags conformance -covermode=count -coverprofile $(PROJECT_NAME).coverprofile
-coverage: test
+coverage: go.sum clean
+	@mkdir ./_coverage
+	CGO_ENABLED=1 $(TEST) $(TEST_FLAGS) -covermode=count -args -test.gocoverdir="$(PWD)/_coverage" $(TEST_TARGET) > /dev/null
+	CGO_ENABLED=0 $(TEST) $(TEST_FLAGS) -covermode=count -args -test.gocoverdir="$(PWD)/_coverage" $(TEST_TARGET) > /dev/null
+	$(GO) tool covdata percent -i=./_coverage/ -o $(PROJECT_NAME).coverprofile
+	@$(RM) -r ./_coverage
 
 clean:
-	$(RM) -v *.coverprofile
+	@$(RM) -r ./_coverage
+	@$(RM) -v *.coverprofile
+	@$(RM) -v tests.json
 
