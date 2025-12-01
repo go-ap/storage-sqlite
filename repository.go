@@ -1088,8 +1088,8 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 	if isCollectionIRI(vocab.IRI(col)) {
 		// Add private items to the collections table
 		if colIRI, k := vocab.Split(vocab.IRI(col)); k == "" {
-			if err := r.addTo(colIRI, it); err != nil {
-				r.logFn("warning adding item: %s", colIRI, err)
+			if err = r.addTo(colIRI, it); err != nil {
+				r.logFn("warning adding item: %s: %s", colIRI, err)
 			}
 		}
 	}
