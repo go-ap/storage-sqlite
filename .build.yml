@@ -16,4 +16,4 @@ tasks:
       cd storage-sqlite
       git switch -C master origin/master
       make coverage
-      go run github.com/mattn/goveralls@latest -tags conformance -flagname unit-tests-cgo -service=${CI_NAME} -coverprofile storage-sqlite.coverprofile -repotokenfile ~/.coveralls.tok
+      go run github.com/mattn/goveralls@latest -flagname unit-tests -service=${CI_NAME} -coverprofile storage-sqlite.coverprofile -repotokenfile ~/.coveralls.tok

@@ -1108,7 +1108,9 @@ func createCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInterf
 		CC:        vocab.ItemCollection{vocab.PublicNS},
 	}
 	if !vocab.IsNil(owner) {
-		col.AttributedTo = owner.GetLink()
+		if vocab.ActorTypes.Contains(owner.GetType()) {
+			col.AttributedTo = owner.GetLink()
+		}
 		_ = vocab.OnObject(owner, func(ob *vocab.Object) error {
 			if !ob.Published.IsZero() {
 				col.Published = ob.Published

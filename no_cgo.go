@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"modernc.org/sqlite"
-	_ "modernc.org/sqlite"
 )
 
 var defaultQueryParam = url.Values{

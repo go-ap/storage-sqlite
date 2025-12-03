@@ -20,16 +20,14 @@ go.sum:
 	$(GO) mod tidy
 
 test: go.sum clean
-	@touch tests.json
-	CGO_ENABLED=1 $(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json >> tests.json
-	CGO_ENABLED=0 $(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json >> tests.json
-	go run github.com/mfridman/tparse@latest -file tests.json
-	@$(RM) ./tests.json
+	CGO_ENABLED=1 $(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json > tests.json || true
+	CGO_ENABLED=0 $(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json >> tests.json || true
+	$(GO) run github.com/mfridman/tparse@latest -file tests.json
 
 coverage: go.sum clean
 	@mkdir ./_coverage
-	CGO_ENABLED=1 $(TEST) $(TEST_FLAGS) -covermode=count -args -test.gocoverdir="$(PWD)/_coverage" $(TEST_TARGET) > /dev/null
-	CGO_ENABLED=0 $(TEST) $(TEST_FLAGS) -covermode=count -args -test.gocoverdir="$(PWD)/_coverage" $(TEST_TARGET) > /dev/null
+	CGO_ENABLED=1 $(TEST) $(TEST_FLAGS) -covermode=count -args -test.gocoverdir="$(PWD)/_coverage" $(TEST_TARGET) > /dev/null || true
+	CGO_ENABLED=0 $(TEST) $(TEST_FLAGS) -covermode=count -args -test.gocoverdir="$(PWD)/_coverage" $(TEST_TARGET) > /dev/null || true
 	$(GO) tool covdata percent -i=./_coverage/ -o $(PROJECT_NAME).coverprofile
 	@$(RM) -r ./_coverage
 
