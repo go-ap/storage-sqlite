@@ -1251,8 +1251,8 @@ func Test_repo_Load(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := r.Load(tt.args.iri, tt.args.fil...)
-			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
+			if !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
+				t.Errorf("Load() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 				return
 			}
 			if !cmp.Equal(tt.want, got, EquateItemCollections) {
@@ -1307,7 +1307,7 @@ func Test_repo_Save1(t *testing.T) {
 
 			got, err := r.Save(tt.it)
 			if !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
-				t.Errorf("Save() error = %s", cmp.Diff(tt.wantErr, err))
+				t.Errorf("Save() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 				return
 			}
 			if !cmp.Equal(got, tt.want) {

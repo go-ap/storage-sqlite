@@ -411,7 +411,7 @@ func wantsRootOutbox(ff ...filters.Check) vocab.Item {
 		Type:         vocab.OrderedCollectionType,
 		AttributedTo: rootIRI,
 		Published:    publishedTime,
-		CC:           vocab.ItemCollection{vocab.IRI("https://www.w3.org/ns/activitystreams#Public")},
+		CC:           vocab.ItemCollection{vocab.PublicNS},
 		OrderedItems: filter(*allActivities.Load(), ff...),
 		TotalItems:   allActivities.Load().Count(),
 	}
