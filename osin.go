@@ -135,7 +135,7 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 	return result, nil
 }
 
-const getClientSQL = "SELECT code, secret, redirect_uri, extra FROM clients WHERE code=?;"
+const getClientSQL = "SELECT code, secret, redirect_uri, extra FROM clients WHERE code = ?"
 
 func errClientNotFound(err error) error {
 	if err == nil {
@@ -169,40 +169,43 @@ func (c cl) GetUserData() any {
 
 var _ osin.Client = cl{}
 
-func getClient(conn *sql.DB, ctx context.Context, id string) (osin.Client, error) {
-	rows, err := conn.QueryContext(ctx, getClientSQL, id)
-	if err != nil {
+func getClient(conn *sql.DB, ctx context.Context, code string) (osin.Client, error) {
+	row := conn.QueryRowContext(ctx, getClientSQL, code)
+	if err := row.Err(); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errClientNotFound(err)
 		}
 		return nil, errors.Annotatef(err, "Unable to load client")
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		c := new(cl)
-		err = rows.Scan(&c.Id, &c.Secret, &c.RedirectUri, &c.UserData)
-		if err != nil {
-			return nil, errors.Annotatef(err, "Unable to load client information")
+	c := new(cl)
+	var userData sql.NullString
+	if err := row.Scan(&c.Id, &c.Secret, &c.RedirectUri, &userData); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errClientNotFound(err)
 		}
-		return c, nil
+		return nil, errors.Annotatef(err, "Unable to load client information")
 	}
-	return nil, errClientNotFound(nil)
+
+	if userData.Valid {
+		c.UserData = userData.String
+	}
+	return c, nil
 }
 
 // GetClient
-func (r *repo) GetClient(id string) (osin.Client, error) {
+func (r *repo) GetClient(code string) (osin.Client, error) {
 	if r == nil || r.conn == nil {
 		return nil, errNotOpen
 	}
-	if id == "" {
-		return nil, errors.NotFoundf("Empty client id")
+	if code == "" {
+		return nil, errors.NotFoundf("Empty client code")
 	}
 
 	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancelFn()
 
-	return getClient(r.conn, ctx, id)
+	return getClient(r.conn, ctx, code)
 }
 
 const updateClient = "UPDATE clients SET (secret, redirect_uri, extra) = (?, ?, ?) WHERE code=?"
@@ -344,7 +347,7 @@ const loadAuthorizeSQL = `SELECT
     a.code a_code, expires_in, scope, a.redirect_uri a_redirect_uri, state, created_at, a.extra a_extra,
     c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra
 FROM authorize a
-inner join clients c on a.client = c.code
+INNER JOIN clients c ON a.client = c.code
 WHERE a.code = ? LIMIT 1;`
 
 func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.AuthorizeData, error) {
@@ -495,8 +498,8 @@ const loadAccessSQL = `SELECT
 	auth.code auth_code, auth.expires_in auth_expires_in,  auth.scope auth_scope, auth.redirect_uri auth_redirect_uri, auth.state auth_state, auth.created_at auth_created_at, auth.extra auth_extra,
 	c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra
 	FROM access acc
-	inner join clients c on acc.client = c.code
-	left join authorize auth on acc.authorize = auth.code
+	INNER JOIN clients c ON acc.client = c.code
+	LEFT JOIN authorize auth ON acc.authorize = auth.code
 WHERE acc.token = ? LIMIT 1`
 
 func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (*osin.AccessData, error) {
@@ -513,15 +516,17 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (
 		acc := new(osin.AccessData)
 		c := new(osin.DefaultClient)
 		auth := new(osin.AuthorizeData)
-		var accUserData, authUserData, cUserData, accPrevious sql.NullString
-		var accCreatedAt, authCreatedAt string
+		var accUserData, cUserData, accPrevious sql.NullString
+		var accCreatedAt string
+		var authCode, authScope, authUserData, authRedirectUri, authState, authCreatedAt sql.NullString
+		var authExpiresIn sql.NullInt32
 		/*
 			acc.token acc_token, acc.refresh_token acc_refresh_token, acc.expires_in acc_expires_in, acc.scope acc_scope, acc.redirect_uri acc_redirect_uri, acc.created_at acc_created_at, acc.extra acc_extra,
 			auth.code auth_code, auth.expires_in auth_expires_in,  auth.scope auth_scope, auth.redirect_uri auth_redirect_uri, auth.state auth_state, auth.created_at auth_created_at, auth.extra auth_extra,
 			c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra,
 		*/
 		err = rows.Scan(&acc.AccessToken, &acc.RefreshToken, &acc.ExpiresIn, &acc.Scope, &acc.RedirectUri, &accCreatedAt, &accUserData, &accPrevious,
-			&auth.Code, &auth.ExpiresIn, &auth.Scope, &auth.RedirectUri, &auth.State, &authCreatedAt, &authUserData,
+			&authCode, &authExpiresIn, &authScope, &authRedirectUri, &authState, &authCreatedAt, &authUserData,
 			&c.Id, &c.RedirectUri, &c.Secret, &cUserData,
 		)
 
@@ -536,8 +541,11 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (
 		if !acc.CreatedAt.IsZero() && acc.ExpireAt().Before(time.Now().UTC()) {
 			return nil, errors.Errorf("Token expired at %s.", acc.ExpireAt().String())
 		}
-		if len(authCreatedAt) > 0 {
-			auth.CreatedAt, _ = time.Parse(time.RFC3339Nano, authCreatedAt)
+		if authCreatedAt.Valid {
+			auth.CreatedAt, _ = time.Parse(time.RFC3339Nano, authCreatedAt.String)
+		}
+		if authRedirectUri.Valid {
+			auth.RedirectUri = authRedirectUri.String
 		}
 
 		if accUserData.Valid {
@@ -545,6 +553,18 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (
 		}
 		if authUserData.Valid {
 			auth.UserData = vocab.IRI(authUserData.String)
+		}
+		if authCode.Valid {
+			auth.Code = authCode.String
+		}
+		if authScope.Valid {
+			auth.Scope = authScope.String
+		}
+		if authState.Valid {
+			auth.State = authState.String
+		}
+		if authExpiresIn.Valid {
+			auth.ExpiresIn = authExpiresIn.Int32
 		}
 		if cUserData.Valid {
 			c.UserData = cUserData.String
