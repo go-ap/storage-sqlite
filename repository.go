@@ -588,6 +588,10 @@ func isStorageCollectionIRI(iri vocab.IRI) bool {
 	return collectionTables.Contains(lst)
 }
 
+func isActorsCollectionIRI(iri vocab.IRI) bool {
+	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
+	return lst == filters.ActorsType
+}
 func isCollectionIRI(iri vocab.IRI) bool {
 	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
 	return collectionPaths.Contains(lst)
@@ -939,6 +943,13 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.
 	selects := []string{"c.iri = ? "}
 	params := []any{iri}
 
+	if isActorsCollectionIRI(iri) {
+		// NOTE(marius): if loading the /actors storage collection we should keep only
+		// actors that are "namespaced" in that collection. This fixes an issue that
+		// we would return also the root service for FedBOX.
+		selects = append(selects, "x.iri LIKE ?")
+		params = append(params, iri.String()+"%")
+	}
 	table := getCollectionTypeFromIRI(iri)
 	var selWithItems string
 	if isStorageCollectionIRI(iri) {
@@ -946,14 +957,13 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.
 		if limit < 0 {
 			limit = filters.MaxItems
 		}
-		sel := `
-select c.iri,
+		sel := `SELECT c.iri,
 	json_patch(
 		json(c.raw),
 		json_object('orderedItems', json_group_array(json(x.raw)))
 	) raw 
-from collections c 
-	left join %s x where %s group by c.iri order by x.published desc LIMIT %d;`
+FROM collections c 
+	LEFT JOIN %s x WHERE %s GROUP BY c.iri ORDER BY x.published DESC LIMIT %d;`
 		selWithItems = fmt.Sprintf(sel, table, strings.Join(selects, " AND "), limit)
 	} else {
 		limit := filters.GetLimit(f...)
@@ -962,16 +972,16 @@ from collections c
 		}
 		where := strings.Join(selects, " AND ")
 		selWithItems = fmt.Sprintf(`
-	select c.iri iri,
+	SELECT c.iri iri,
 		json_patch(
 			json(c.raw),
 			json_object('orderedItems', json_group_array(json(coalesce(x.raw, y.raw, o.raw))))
 		) raw
-	from collections c, json_each(json_insert(c.items, '$[0]', null))
-		left join activities x on value = x.iri 
-		left join actors y on value = y.iri 
-		left join objects o on value = o.iri 
-where %s order by coalesce(x.published, y.published, o.published) desc LIMIT %d`, where, limit)
+	FROM collections c, json_each(json_insert(c.items, '$[0]', null))
+		LEFT JOIN activities x ON value = x.iri 
+		LEFT JOIN actors y ON value = y.iri 
+		LEFT JOIN objects o ON value = o.iri 
+WHERE %s ORDER BY COALESCE(x.published, y.published, o.published) DESC LIMIT %d`, where, limit)
 	}
 
 	var cIri sql.NullString
