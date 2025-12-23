@@ -4,17 +4,17 @@ go 1.25
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20251217103921-9808e9a35f7b
-	github.com/go-ap/cache v0.0.0-20251216163157-446dbe3865f8
+	github.com/go-ap/activitypub v0.0.0-20251223172601-b4d07d3da29a
+	github.com/go-ap/cache v0.0.0-20251223172710-f742dbb84a5b
 	github.com/go-ap/errors v0.0.0-20251216162958-cb99ea99a461
-	github.com/go-ap/filters v0.0.0-20251217104054-a89c371835ef
+	github.com/go-ap/filters v0.0.0-20251223172742-63088f21cc67
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
 	github.com/go-ap/storage-conformance-suite v0.0.0-20251201101719-495788974260
 	github.com/google/go-cmp v0.7.0
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.46.0
-	modernc.org/sqlite v1.40.2-0.20251208121757-c233febc9136
+	modernc.org/sqlite v1.41.0
 )
 
 require (
@@ -44,7 +44,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/valyala/fastjson v1.6.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 // indirect
+	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
