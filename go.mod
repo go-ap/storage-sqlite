@@ -4,10 +4,10 @@ go 1.25
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20251228132538-8fd2e395608d
-	github.com/go-ap/cache v0.0.0-20251228132647-85d191dad789
-	github.com/go-ap/errors v0.0.0-20251216162958-cb99ea99a461
-	github.com/go-ap/filters v0.0.0-20251228132714-5507e06ed9df
+	github.com/go-ap/activitypub v0.0.0-20251229135531-ed9c5f603bba
+	github.com/go-ap/cache v0.0.0-20251229135553-bd6d722b241f
+	github.com/go-ap/errors v0.0.0-20251229095444-2702aa2d8569
+	github.com/go-ap/filters v0.0.0-20251229135628-42af05c677ee
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
 	github.com/go-ap/storage-conformance-suite v0.0.0-20251201101719-495788974260
 	github.com/google/go-cmp v0.7.0
