@@ -6,10 +6,32 @@ import (
 	"database/sql"
 	"net/url"
 
-	"github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-type Error = sqlite3.Error
+type sqlError struct {
+	Code         int
+	ExtendedCode int
+	SystemErrno  int
+	Err          string
+}
+
+func (e sqlError) Error() string {
+	return e.Err
+}
+
+var errCantOpen = sqlError{
+	Code:         14,
+	ExtendedCode: 14,
+	SystemErrno:  0x0d,
+	Err:          "unable to open database file: permission denied",
+}
+
+var errNoSuchTable = &sqlError{
+	Code:         1,
+	ExtendedCode: 1,
+	Err:          "no such table: activities",
+}
 
 var defaultQueryParam = url.Values{
 	"_txlock": []string{"immediate"},

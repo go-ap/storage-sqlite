@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"net/url"
 
-	"modernc.org/sqlite"
+	_ "modernc.org/sqlite"
 )
 
 var defaultQueryParam = url.Values{
@@ -24,7 +24,18 @@ var defaultQueryParam = url.Values{
 	},
 }
 
-type Error = sqlite.Error
+type sqlErr struct {
+	msg  string
+	code int
+}
+
+func (e sqlErr) Error() string {
+	return e.msg
+}
+
+var errCantOpen = &sqlErr{msg: "unable to open database file: out of memory (14)", code: 14}
+
+var errNoSuchTable = &sqlErr{msg: "SQL logic error: no such table: activities (1)", code: 1}
 
 // sqlOpen will use the learnc.org/sqlite when compiled without CGO
 // this driver is less performant.

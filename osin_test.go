@@ -121,7 +121,9 @@ func Test_repo_GetClient(t *testing.T) {
 			s := mockRepo(t, fields{path: t.TempDir()}, tt.setupFns...)
 			t.Cleanup(s.Close)
 			got, err := s.GetClient(tt.arg)
-			checkErrorsEqual(t, tt.err, err)
+			if !cmp.Equal(tt.err, err, EquateWeakErrors) {
+				t.Errorf("invalid error type received %s", cmp.Diff(tt.err, got, EquateWeakErrors))
+			}
 			if !cmp.Equal(tt.want, got) {
 				t.Errorf("Different client received, from expected: %s", cmp.Diff(tt.want, got))
 			}

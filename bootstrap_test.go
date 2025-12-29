@@ -56,7 +56,9 @@ func TestBootstrap1(t *testing.T) {
 			}
 
 			err := Bootstrap(conf)
-			checkErrorsEqual(t, tt.err, err)
+			if !cmp.Equal(tt.err, err, EquateWeakErrors) {
+				t.Errorf("Bootstrap() error %s", cmp.Diff(tt.err, err, EquateWeakErrors))
+			}
 		})
 	}
 }
@@ -95,7 +97,7 @@ func TestBootstrap(t *testing.T) {
 			name: "forbidden",
 			arg:  Config{Path: forbiddenPath},
 			wantErr: errors.Annotatef(
-				&Error{},
+				errCantOpen,
 				`unable to execute: "CREATE TABLE IF NOT EXISTS objects (  "raw" BLOB,  "iri" TEXT NOT NULL constraint objects_key unique,  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,  "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,  "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,  "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,  "summary" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.summary')) VIRTUAL,  "content" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.content')) VIRTUAL) STRICT;CREATE INDEX objects_type ON objects(type);CREATE INDEX objects_name ON objects(name);CREATE INDEX objects_content ON objects(content);CREATE INDEX objects_published ON objects(published);CREATE INDEX objects_updated ON objects(updated);"`,
 			),
 		},
@@ -103,7 +105,7 @@ func TestBootstrap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := Bootstrap(tt.arg); !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
-				t.Errorf("Bootstrap() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Bootstrap() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 				return
 			}
 			if tt.wantErr != nil {

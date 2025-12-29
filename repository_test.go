@@ -1073,7 +1073,7 @@ func Test_repo_Load_UnhappyPath(t *testing.T) {
 			name:     "not bootstrapped",
 			args:     args{iri: "https://example.com"},
 			setupFns: []initFn{withOpenRoot},
-			wantErr:  errors.Annotatef(&Error{}, "unable to run select"),
+			wantErr:  errors.Annotatef(errNoSuchTable, "unable to run select"),
 		},
 		{
 			name:     "empty iri gives us not found",
@@ -1094,7 +1094,7 @@ func Test_repo_Load_UnhappyPath(t *testing.T) {
 
 			got, err := r.Load(tt.args.iri, tt.args.fil...)
 			if !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
-				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Load() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 				return
 			}
 			if !vocab.ItemsEqual(got, tt.want) {
