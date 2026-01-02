@@ -5,6 +5,7 @@ package sqlite
 import (
 	"database/sql"
 	"net/url"
+	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -37,7 +38,7 @@ var defaultQueryParam = url.Values{
 	"_txlock": []string{"immediate"},
 	// from BJohnson's recommendations to use with litestream
 	//"_journal_mode": []string{"WAL"},
-	"_busy_timeout": []string{"5000"},
+	"_busy_timeout": []string{strconv.Itoa(int(2 * defaultTimeout.Seconds()))},
 }
 
 // sqlOpen will use the github.com/mattn/go-sqlite3 package when compiled with CGO

@@ -5,6 +5,7 @@ package sqlite
 import (
 	"database/sql"
 	"net/url"
+	"strconv"
 
 	_ "modernc.org/sqlite"
 )
@@ -19,7 +20,7 @@ var defaultQueryParam = url.Values{
 		//"cache_size=-64000",
 		// from BJohnson's recommendations to use with litestream
 		//"journal_mode=WAL",
-		"busy_timeout=5000",
+		"busy_timeout=" + strconv.Itoa(int(2*defaultTimeout.Seconds())),
 		//"wal_autocheckpoint=0",
 	},
 }
