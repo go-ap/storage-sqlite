@@ -76,18 +76,6 @@ func (r *repo) Open() (err error) {
 	return err
 }
 
-// Close closes the sqlite database
-func (r *repo) close() (err error) {
-	if r.conn == nil {
-		return
-	}
-	err = r.conn.Close()
-	if err == nil {
-		r.conn = nil
-	}
-	return
-}
-
 var allCollections = append(filters.FedBOXCollections, vocab.ActivityPubCollections...)
 
 func getCollectionTypeFromIRI(i vocab.IRI) vocab.CollectionPath {
@@ -212,14 +200,18 @@ func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface,
 	return r.createCollection(col)
 }
 
+func isUniqueError(err error) bool {
+	return !strings.Contains(err.Error(), "UNIQUE constraint failed: collections.iri")
+}
+
 func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
 	raw, err := vocab.MarshalJSON(col)
 	if err != nil {
 		r.errFn("unable to marshal collection %s: %s", col.GetLink(), err)
 		return col, errors.Annotatef(err, "unable to save Collection")
 	}
-	ins := "INSERT OR REPLACE INTO collections (raw, iri, items) VALUES (?, ?, ?);"
-	if _, err = r.conn.Exec(ins, raw, col.GetLink(), emptyCol); err != nil {
+	ins := "INSERT INTO collections (iri, raw, items) VALUES (?, ?, ?);"
+	if _, err = r.conn.Exec(ins, col.GetLink(), string(raw), string(emptyCol)); err != nil && !isUniqueError(err) {
 		r.errFn("query error when creating %s: %s\n%s", col.GetLink(), err, ins)
 		return col, errors.Annotatef(err, "unable to save Collection")
 	}
@@ -278,7 +270,7 @@ func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
 	}
 
 	query := "UPDATE collections SET raw = ?, items = ? WHERE iri = ?;"
-	_, err = r.conn.Exec(query, raw, rawItems, c.GetLink())
+	_, err = r.conn.Exec(query, string(raw), string(rawItems), c.GetLink())
 	if err != nil {
 		r.errFn("query error: %s\n%s\n%s", err, stringClean(query), c.GetLink())
 		return errors.Annotatef(err, "query error")
@@ -289,7 +281,7 @@ func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
 
 func (r *repo) exec(query string, args ...any) (sql.Result, error) {
 	if r.conn == nil {
-		return nil, errors.Newf("nil sql connection")
+		return nil, errNotOpen
 	}
 	return r.conn.Exec(query, args...)
 }
@@ -382,8 +374,8 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
-	query := `INSERT INTO collections (raw, iri, items) VALUES (?, ?, ?) ON CONFLICT(iri) DO UPDATE SET raw = ?, items = ?;`
-	_, err = r.exec(query, raw, col.GetLink(), rawItems, raw, rawItems)
+	query := `INSERT OR REPLACE INTO collections (iri, raw, items) VALUES (?, ?, ?);`
+	_, err = r.exec(query, col.GetLink(), string(raw), string(rawItems))
 	if err != nil {
 		r.errFn("query error: %s\n%s %#v", err, query, vocab.IRIs{c.GetLink()})
 		return errors.Annotatef(err, "query error")
@@ -458,7 +450,7 @@ func mkDirIfNotExists(p string) error {
 
 func saveMetadataToTable(conn *sql.DB, iri vocab.IRI, m []byte) error {
 	query := "INSERT OR REPLACE INTO meta (iri, raw) VALUES(?, ?);"
-	_, err := conn.Exec(query, iri, m)
+	_, err := conn.Exec(query, iri, string(m))
 	return err
 }
 
@@ -592,6 +584,12 @@ func isActorsCollectionIRI(iri vocab.IRI) bool {
 	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
 	return lst == filters.ActorsType
 }
+
+func isObjectsCollectionIRI(iri vocab.IRI) bool {
+	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
+	return lst == filters.ObjectsType
+}
+
 func isCollectionIRI(iri vocab.IRI) bool {
 	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
 	return collectionPaths.Contains(lst)
@@ -613,6 +611,9 @@ func loadFromOneTable(r *repo, iri vocab.IRI, table vocab.CollectionPath, f ...f
 	if isStorageCollectionIRI(iri) {
 		clauses = append(clauses, `iri like ?`)
 		values = append(values, stripFiltersFromIRI(iri)+"%")
+	} else if len(clauses) == 0 {
+		clauses = append(clauses, `iri = ?`)
+		values = append(values, stripFiltersFromIRI(iri))
 	}
 	if len(clauses) == 0 {
 		clauses = []string{"true"}
@@ -719,6 +720,9 @@ func loadTagsForObject(r *repo, ff ...filters.Check) func(o *vocab.Object) error
 			for i, t := range *col {
 				if vocab.IsNil(t) || !vocab.IsIRI(t) {
 					return nil
+				}
+				if len(tf) == 0 {
+					tf = append(tf, filters.SameID(t.GetLink()))
 				}
 				if ob, err := loadFromOneTable(r, t.GetLink(), "objects", tf...); err == nil {
 					(*col)[i] = ob.Collection().First()
@@ -945,8 +949,8 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.
 
 	if isActorsCollectionIRI(iri) {
 		// NOTE(marius): if loading the /actors storage collection we should keep only
-		// actors that are "namespaced" in that collection. This fixes an issue that
-		// we would return also the root service for FedBOX.
+		// items that are "namespaced" in that collection.
+		// This fixes an issue that we would return also the root service for FedBOX, or collections
 		selects = append(selects, "x.iri LIKE ?")
 		params = append(params, iri.String()+"%")
 	}
@@ -1061,9 +1065,6 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 
 	iri := it.GetLink()
 
-	if err := createCollections(r, it); err != nil {
-		return it, errors.Annotatef(err, "could not create object's collections")
-	}
 	raw, err := encodeItemFn(it)
 	if err != nil {
 		r.errFn("query error: %s", err)
@@ -1072,7 +1073,7 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 
 	columns := []string{"raw, iri"}
 	tokens := []string{"?, ?"}
-	params := []any{raw, iri}
+	params := []any{string(raw), iri}
 
 	table := string(filters.ObjectsType)
 	typ := it.GetType()
@@ -1129,48 +1130,4 @@ func createCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInterf
 		})
 	}
 	return &col
-}
-
-func createCollectionInTable(r *repo, it vocab.Item, owner vocab.Item) (vocab.Item, error) {
-	if vocab.IsNil(it) {
-		return nil, nil
-	}
-
-	colObject, _ := loadFromCollectionTable(r, colIRI(it.GetLink()))
-	if colObject == nil {
-		var err error
-		c, ok := it.(vocab.CollectionInterface)
-		if !ok {
-			c = createCollection(it.GetLink(), owner)
-		}
-		it, err = r.createCollection(c)
-		if err != nil {
-			return nil, errors.Annotatef(err, "saving collection object is not done")
-		}
-	}
-
-	return it.GetLink(), nil
-}
-
-// createCollections
-func createCollections(r *repo, it vocab.Item) error {
-	if vocab.IsNil(it) || !it.IsObject() {
-		return nil
-	}
-	if vocab.ActorTypes.Contains(it.GetType()) {
-		_ = vocab.OnActor(it, func(p *vocab.Actor) error {
-			p.Inbox, _ = createCollectionInTable(r, p.Inbox, p)
-			p.Outbox, _ = createCollectionInTable(r, p.Outbox, p)
-			p.Followers, _ = createCollectionInTable(r, p.Followers, p)
-			p.Following, _ = createCollectionInTable(r, p.Following, p)
-			p.Liked, _ = createCollectionInTable(r, p.Liked, p)
-			return nil
-		})
-	}
-	return vocab.OnObject(it, func(o *vocab.Object) error {
-		o.Replies, _ = createCollectionInTable(r, o.Replies, o)
-		o.Likes, _ = createCollectionInTable(r, o.Likes, o)
-		o.Shares, _ = createCollectionInTable(r, o.Shares, o)
-		return nil
-	})
 }

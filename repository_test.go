@@ -42,7 +42,7 @@ func saveMocks(t *testing.T, base string, root vocab.Item, mocks ...string) stri
 
 		table := getCollectionTypeFromItem(it)
 
-		values = append(values, []byte(mock), it.GetLink())
+		values = append(values, mock, it.GetLink())
 		fields = append(fields, "raw", "iri")
 		params = append(params, "?", "?")
 		if table == "collections" {
@@ -52,7 +52,7 @@ func saveMocks(t *testing.T, base string, root vocab.Item, mocks ...string) stri
 					rawItems = emptyCol
 				}
 				fields = append(fields, "items")
-				values = append(values, rawItems)
+				values = append(values, string(rawItems))
 				params = append(params, "?")
 				return nil
 			})
@@ -690,11 +690,8 @@ func TestRepo_Close(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to open sqlite %s: %s", conf.Path, err)
 	}
-	err = repo.close()
-	if err != nil {
-		t.Errorf("Unable to close sqlite %s: %s", conf.Path, err)
-	}
-	os.Remove(conf.Path)
+	repo.Close()
+	_ = os.Remove(conf.Path)
 }
 
 func defaultCol(iri vocab.IRI) vocab.CollectionInterface {

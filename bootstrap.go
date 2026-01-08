@@ -43,11 +43,7 @@ func Bootstrap(conf Config) error {
 	if err = r.Open(); err != nil {
 		return err
 	}
-	defer func() {
-		if err = r.close(); err != nil {
-			r.errFn("error closing the db: %+s", err)
-		}
-	}()
+	defer r.Close()
 
 	exec := func(qRaw string, par ...interface{}) error {
 		qSql := fmt.Sprintf(qRaw, par...)
@@ -108,9 +104,10 @@ func (r *repo) Reset() {
 	if err != nil {
 		return
 	}
-	defer r.close()
+	defer r.Close()
 
 	for _, table := range tables {
-		_, _ = r.conn.Exec("DELETE FROM ?", table)
+		q := `DELETE FROM "` + table + `";`
+		_, _ = r.conn.Exec(q)
 	}
 }

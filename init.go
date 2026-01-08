@@ -3,14 +3,14 @@ package sqlite
 const (
 	createActorsQuery = `
 CREATE TABLE IF NOT EXISTS actors (
-  "raw" BLOB,
+  "raw" TEXT,
   "iri" TEXT NOT NULL constraint actors_key unique,
   "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
-  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
-  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
-  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
-  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
+  "to" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
+  "bto" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
+  "cc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
+  "bcc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
   "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
@@ -25,14 +25,14 @@ CREATE INDEX actors_updated ON actors(updated);
 
 	createActivitiesQuery = `
 CREATE TABLE IF NOT EXISTS activities (
-  "raw" BLOB,
+  "raw" TEXT,
   "iri" TEXT NOT NULL constraint activities_key unique,
   "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
-  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
-  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
-  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
-  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
+  "to" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
+  "bto" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
+  "cc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
+  "bcc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
   "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
@@ -48,14 +48,14 @@ CREATE INDEX activities_updated ON activities(updated);
 
 	createObjectsQuery = `
 CREATE TABLE IF NOT EXISTS objects (
-  "raw" BLOB,
+  "raw" TEXT,
   "iri" TEXT NOT NULL constraint objects_key unique,
   "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
-  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
-  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
-  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
-  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
+  "to" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
+  "bto" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
+  "cc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
+  "bcc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
   "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,
   "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,
@@ -72,17 +72,17 @@ CREATE INDEX objects_updated ON objects(updated);
 
 	createCollectionsQuery = `
 CREATE TABLE IF NOT EXISTS collections (
-  "raw" BLOB,
+  "raw" TEXT,
   "iri" TEXT NOT NULL constraint collections_key unique,
   "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL,
   "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,
-  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
-  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
-  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
-  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
+  "to" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,
+  "bto" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,
+  "cc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,
+  "bcc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
   "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
-  "items" BLOB
+  "items" TEXT
 ) STRICT;
 CREATE INDEX collections_type ON collections(type);
 CREATE INDEX collections_published ON collections(published);
@@ -91,9 +91,9 @@ CREATE INDEX collections_updated ON collections(updated);
 
 	createMetaQuery = `
 CREATE TABLE IF NOT EXISTS meta (
-  "published" TEXT default CURRENT_TIMESTAMP,
-  "raw" BLOB,
-  "iri" TEXT NOT NULL constraint meta_key unique
+  "iri" TEXT NOT NULL constraint meta_key unique,
+  "raw" TEXT,
+  "published" TEXT default CURRENT_TIMESTAMP
 ) STRICT;
 `
 	tuneQuery = `

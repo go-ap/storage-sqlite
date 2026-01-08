@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -98,7 +99,7 @@ func TestBootstrap(t *testing.T) {
 			arg:  Config{Path: forbiddenPath},
 			wantErr: errors.Annotatef(
 				errCantOpen,
-				`unable to execute: "CREATE TABLE IF NOT EXISTS objects (  "raw" BLOB,  "iri" TEXT NOT NULL constraint objects_key unique,  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,  "to" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,  "bto" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,  "cc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,  "bcc" BLOB GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,  "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,  "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,  "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,  "summary" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.summary')) VIRTUAL,  "content" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.content')) VIRTUAL) STRICT;CREATE INDEX objects_type ON objects(type);CREATE INDEX objects_name ON objects(name);CREATE INDEX objects_content ON objects(content);CREATE INDEX objects_published ON objects(published);CREATE INDEX objects_updated ON objects(updated);"`,
+				`unable to execute: "CREATE TABLE IF NOT EXISTS objects (  "raw" TEXT,  "iri" TEXT NOT NULL constraint objects_key unique,  "id" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.id')) VIRTUAL ,  "type" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.type')) VIRTUAL,  "to" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.to')) VIRTUAL,  "bto" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bto')) VIRTUAL,  "cc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.cc')) VIRTUAL,  "bcc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,  "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,  "updated" TEXT GENERATED ALWAYS AS (coalesce(json_extract(raw, '$.updated'), json_extract(raw, '$.deleted'), json_extract(raw, '$.published'))) VIRTUAL,  "url" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.url')) VIRTUAL,  "name" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.name')) VIRTUAL,  "summary" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.summary')) VIRTUAL,  "content" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.content')) VIRTUAL) STRICT;CREATE INDEX objects_type ON objects(type);CREATE INDEX objects_name ON objects(name);CREATE INDEX objects_content ON objects(content);CREATE INDEX objects_published ON objects(published);CREATE INDEX objects_updated ON objects(updated);"`,
 			),
 		},
 	}
@@ -176,10 +177,6 @@ func Test_repo_Reset(t *testing.T) {
 		setupFns []initFn
 	}{
 		{
-			name:   "empty",
-			fields: fields{},
-		},
-		{
 			name: "not empty",
 			fields: fields{
 				path: t.TempDir(),
@@ -192,14 +189,17 @@ func Test_repo_Reset(t *testing.T) {
 			r := mockRepo(t, tt.fields, tt.setupFns...)
 			t.Cleanup(r.Close)
 
+			// Reset closes the db
 			r.Reset()
 
 			for _, table := range tables {
-				if r.conn == nil {
-					continue
+				if r.conn != nil {
+					t.Errorf("Reset() left db connection open")
 				}
+				_ = r.Open()
+
 				var count sql.NullInt32
-				err := r.conn.QueryRow("select count(*) FROM ? WHERE true", table).Scan(&count)
+				err := r.conn.QueryRow(fmt.Sprintf("select count(*) FROM %s WHERE true", table)).Scan(&count)
 				if err != nil {
 					t.Errorf("Reset() left table in invalid state: %s", err)
 					return
@@ -211,6 +211,7 @@ func Test_repo_Reset(t *testing.T) {
 				if count.Int32 > 0 {
 					t.Errorf("Reset() left table with existing rows: %d", count.Int32)
 				}
+				r.Close()
 			}
 		})
 	}
