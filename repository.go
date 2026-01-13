@@ -154,6 +154,10 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 
 	if !isCollectionIRI(i) {
 		ff = append(filters.Checks{filters.SameID(i)}, ff...)
+		if u, _ := i.URL(); u != nil && u.Path == "" {
+			u.Path = "/"
+			ff = append(ff, filters.SameID(vocab.IRI(u.String())))
+		}
 	}
 	it, err := load(r, i, ff...)
 	if err != nil {
