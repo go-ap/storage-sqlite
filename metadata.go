@@ -32,13 +32,17 @@ func (r *repo) PasswordSet(iri vocab.IRI, pw []byte) error {
 	if len(iri) == 0 {
 		return errors.NotFoundf("not found")
 	}
-	pw, err := bcrypt.GenerateFromPassword(pw, -1)
-	if err != nil {
-		return errors.Annotatef(err, "could not generate pw hash")
-	}
+
 	m := new(Metadata)
-	_ = r.LoadMetadata(iri, m)
-	m.Pw = pw
+	if err := r.LoadMetadata(iri, m); err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	var err error
+	m.Pw, err = bcrypt.GenerateFromPassword(pw, -1)
+	if err != nil {
+		return errors.Annotatef(err, "Could not generate password hash")
+	}
 	return r.SaveMetadata(iri, m)
 }
 
