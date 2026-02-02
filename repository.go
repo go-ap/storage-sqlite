@@ -92,14 +92,18 @@ func getCollectionTypeFromIRI(i vocab.IRI) vocab.CollectionPath {
 }
 
 func getCollectionTypeFromItem(it vocab.Item) vocab.CollectionPath {
+	typ := it.GetType()
+	if typ == nil {
+		return "objects"
+	}
 	switch {
-	case vocab.ActorTypes.Contains(it.GetType()):
+	case vocab.ActorTypes.Match(typ):
 		return "actors"
-	case vocab.ActivityTypes.Contains(it.GetType()):
+	case vocab.ActivityTypes.Match(typ):
 		return "activities"
-	case vocab.IntransitiveActivityTypes.Contains(it.GetType()):
+	case vocab.IntransitiveActivityTypes.Match(typ):
 		return "activities"
-	case append(collectionTypes, orderedCollectionTypes...).Contains(it.GetType()):
+	case append(collectionTypes, orderedCollectionTypes...).Match(typ):
 		return "collections"
 	default:
 		if _, isActor := it.(*vocab.Person); isActor {
@@ -115,8 +119,8 @@ func getCollectionTypeFromItem(it vocab.Item) vocab.CollectionPath {
 	}
 }
 
-func getCollectionTable(typ vocab.CollectionPath) vocab.CollectionPath {
-	switch typ {
+func getCollectionTable(colName vocab.CollectionPath) vocab.CollectionPath {
+	switch colName {
 	case vocab.Followers:
 		fallthrough
 	case vocab.Following:
@@ -155,6 +159,7 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 	if !isCollectionIRI(i) {
 		ff = append(filters.Checks{filters.SameID(i)}, ff...)
 		if u, _ := i.URL(); u != nil && u.Path == "" {
+			// NOTE(marius): I
 			u.Path = "/"
 			ff = append(ff, filters.SameID(vocab.IRI(u.String())))
 		}
@@ -360,13 +365,14 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 		return errors.Annotatef(err, "unable to marshal Collection items")
 	}
 
-	if orderedCollectionTypes.Contains(c.GetType()) {
+	typ := c.GetType()
+	if orderedCollectionTypes.Match(typ) {
 		err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
 			col.TotalItems = iris.Count()
 			col.OrderedItems = nil
 			return nil
 		})
-	} else if collectionTypes.Contains(c.GetType()) {
+	} else if collectionTypes.Match(typ) {
 		err = vocab.OnCollection(c, func(col *vocab.Collection) error {
 			col.TotalItems = iris.Count()
 			col.Items = nil
@@ -864,7 +870,7 @@ func childFilter(r *repo, ret *vocab.ItemCollection, keepFn keepFn, ff ...filter
 		return toRemove
 	}
 	for _, rr := range *ret {
-		if !vocab.ActivityTypes.Contains(rr.GetType()) {
+		if !vocab.ActivityTypes.Match(rr.GetType()) {
 			toRemove = append(toRemove, rr.GetID())
 			continue
 		}
@@ -914,9 +920,10 @@ func load(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface
 		ob.ID = iri
 		return nil
 	})
-	if orderedCollectionTypes.Contains(par.GetType()) {
+	typ := par.GetType()
+	if orderedCollectionTypes.Match(typ) {
 		_ = vocab.OnOrderedCollection(par, postProcessOrderedCollection(par.Collection()))
-	} else if collectionTypes.Contains(par.GetType()) {
+	} else if collectionTypes.Match(typ) {
 		_ = vocab.OnCollection(par, postProcessCollection(par.Collection()))
 	}
 	return par, err
@@ -1026,9 +1033,10 @@ WHERE %s ORDER BY COALESCE(x.published, y.published, o.published) DESC LIMIT %d`
 	items = runObjectFilters(items, f...)
 
 	if isStorageCollectionIRI(iri) {
-		if orderedCollectionTypes.Contains(res.GetType()) {
+		typ := res.GetType()
+		if orderedCollectionTypes.Match(typ) {
 			err = vocab.OnOrderedCollection(res, postProcessOrderedCollection(items))
-		} else if collectionTypes.Contains(res.GetType()) {
+		} else if collectionTypes.Match(typ) {
 			err = vocab.OnCollection(res, postProcessCollection(items))
 		}
 	}
@@ -1081,11 +1089,11 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 
 	table := string(filters.ObjectsType)
 	typ := it.GetType()
-	if vocab.ActivityTypes.Contains(typ) || vocab.IntransitiveActivityTypes.Contains(typ) {
+	if append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...).Match(typ) {
 		table = string(filters.ActivitiesType)
-	} else if vocab.ActorTypes.Contains(typ) {
+	} else if vocab.ActorTypes.Match(typ) {
 		table = string(filters.ActorsType)
-	} else if typ == vocab.TombstoneType {
+	} else if vocab.TombstoneType.Match(typ) {
 		if strings.Contains(iri.String(), string(filters.ActorsType)) {
 			table = string(filters.ActorsType)
 		}
@@ -1123,7 +1131,7 @@ func createCollection(colIRI vocab.IRI, owner vocab.Item) vocab.CollectionInterf
 		CC:        vocab.ItemCollection{vocab.PublicNS},
 	}
 	if !vocab.IsNil(owner) {
-		if vocab.ActorTypes.Contains(owner.GetType()) {
+		if vocab.ActorTypes.Match(owner.GetType()) {
 			col.AttributedTo = owner.GetLink()
 		}
 		_ = vocab.OnObject(owner, func(ob *vocab.Object) error {

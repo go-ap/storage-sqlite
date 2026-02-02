@@ -474,7 +474,7 @@ func Test_repo_AddTo(t *testing.T) {
 
 				_ = vocab.OnOrderedCollection(it, func(col *vocab.OrderedCollection) error {
 					be.True(t, mockCol.ID == col.ID)
-					be.True(t, mockCol.Type == col.Type)
+					be.True(t, vocab.TypesEqual(mockCol.Type, col.Type))
 					return nil
 				})
 
