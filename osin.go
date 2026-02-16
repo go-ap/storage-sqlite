@@ -31,6 +31,8 @@ const (
 	"scope" BLOB,
 	"redirect_uri" varchar NOT NULL,
 	"state" BLOB,
+	"code_challenge" varchar DEFAULT NULL,
+	"code_challenge_method" varchar DEFAULT NULL,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"extra" BLOB DEFAULT '{}'
 );
@@ -209,7 +211,6 @@ func (r *repo) GetClient(code string) (osin.Client, error) {
 }
 
 const updateClient = "UPDATE clients SET (secret, redirect_uri, extra) = (?, ?, ?) WHERE code=?"
-const updateClientNoExtra = "UPDATE clients SET (secret, redirect_uri) = (?, ?) WHERE code=?"
 
 var nilClientErr = errors.Newf("nil client")
 
@@ -231,23 +232,18 @@ func (r *repo) UpdateClient(c osin.Client) error {
 	params := []interface{}{
 		c.GetSecret(),
 		c.GetRedirectUri(),
-	}
-	q := updateClientNoExtra
-	if data != nil {
-		q = updateClient
-		params = append(params, interface{}(data))
+		data,
 	}
 	params = append(params, c.GetId())
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
-	if _, err := r.conn.ExecContext(ctx, q, params...); err != nil {
+	if _, err := r.conn.ExecContext(ctx, updateClient, params...); err != nil {
 		r.errFn("Failed to update client id %s: %+s", c.GetId(), err)
 		return errors.Annotatef(err, "Unable to update client")
 	}
 	return nil
 }
 
-const createClientNoExtra = "INSERT INTO clients (code, secret, redirect_uri) VALUES (?, ?, ?)"
 const createClient = "INSERT INTO clients (code, secret, redirect_uri, extra) VALUES (?, ?, ?, ?)"
 
 // CreateClient
@@ -268,15 +264,11 @@ func (r *repo) CreateClient(c osin.Client) error {
 		c.GetId(),
 		c.GetSecret(),
 		c.GetRedirectUri(),
-	}
-	q := createClientNoExtra
-	if data != nil {
-		q = createClient
-		params = append(params, interface{}(data))
+		data,
 	}
 
 	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
-	if _, err = r.conn.ExecContext(ctx, q, params...); err != nil {
+	if _, err = r.conn.ExecContext(ctx, createClient, params...); err != nil {
 		r.errFn("Error inserting client id %s: %+s", c.GetId(), err)
 		return errors.Annotatef(err, "Unable to save new client")
 	}
@@ -299,11 +291,9 @@ func (r *repo) RemoveClient(id string) error {
 	return nil
 }
 
-const saveAuthorizeNoExtra = `INSERT INTO authorize (client, code, expires_in, scope, redirect_uri, state, created_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?);
-`
-const saveAuthorize = `INSERT INTO authorize (client, code, expires_in, scope, redirect_uri, state, created_at, extra)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?);`
+const saveAuthorize = `INSERT INTO authorize (client, code, expires_in, scope, redirect_uri, state, created_at, extra,
+code_challenge, code_challenge_method)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
 
 // SaveAuthorize saves authorize data.
 func (r *repo) SaveAuthorize(data *osin.AuthorizeData) error {
@@ -320,7 +310,6 @@ func (r *repo) SaveAuthorize(data *osin.AuthorizeData) error {
 		return err
 	}
 
-	q := saveAuthorizeNoExtra
 	var params = []interface{}{
 		data.Client.GetId(),
 		data.Code,
@@ -329,14 +318,18 @@ func (r *repo) SaveAuthorize(data *osin.AuthorizeData) error {
 		data.RedirectUri,
 		data.State,
 		data.CreatedAt.UTC().Format(time.RFC3339),
+		extra,
 	}
-	if extra != nil {
-		q = saveAuthorize
-		params = append(params, extra)
+	if data.CodeChallengeMethod != "" {
+		params = append(params, data.CodeChallenge, data.CodeChallengeMethod)
+	} else {
+		params = append(params, nil, nil)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
-	if _, err = r.conn.ExecContext(ctx, q, params...); err != nil {
+	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancelFn()
+
+	if _, err = r.conn.ExecContext(ctx, saveAuthorize, params...); err != nil {
 		r.errFn("Failed to insert authorize data for client id %s, code %s: %+s", data.Client.GetId(), data.Code, err)
 		return errors.Annotatef(err, "Unable to save authorize token")
 	}
@@ -345,6 +338,7 @@ func (r *repo) SaveAuthorize(data *osin.AuthorizeData) error {
 
 const loadAuthorizeSQL = `SELECT
     a.code a_code, expires_in, scope, a.redirect_uri a_redirect_uri, state, created_at, a.extra a_extra,
+    a.code_challenge a_code_challenge, a.code_challenge_method a_code_challenge_method,
     c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra
 FROM authorize a
 INNER JOIN clients c ON a.client = c.code
@@ -366,13 +360,17 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 		a = new(osin.AuthorizeData)
 		c := new(osin.DefaultClient)
 		var aUserData sql.NullString
+		var aCodeChallenge sql.NullString
+		var aCodeChallengeMethod sql.NullString
 		var cUserData sql.NullString
 		var createdAt string
 		/*
 			a.code a_code, expires_in, scope, a.redirect_uri a_redirect_uri, state, created_at, a.extra a_extra,
+			a.code_challenge a_code_challenge, a.code_challenge_method a_code_challenge_method,
 			c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra
 		*/
 		err = rows.Scan(&a.Code, &a.ExpiresIn, &a.Scope, &a.RedirectUri, &a.State, &createdAt, &aUserData,
+			&aCodeChallenge, &aCodeChallengeMethod,
 			&c.Id, &c.RedirectUri, &c.Secret, &cUserData)
 		if err != nil {
 			return nil, errors.Annotatef(err, "unable to load authorize data")
@@ -387,6 +385,12 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 		}
 		if cUserData.Valid {
 			c.UserData = cUserData.String
+		}
+		if aCodeChallenge.Valid {
+			a.CodeChallenge = aCodeChallenge.String
+		}
+		if aCodeChallengeMethod.Valid {
+			a.CodeChallengeMethod = aCodeChallengeMethod.String
 		}
 		if len(c.Id) > 0 {
 			a.Client = c
@@ -433,8 +437,6 @@ func (r *repo) RemoveAuthorize(code string) error {
 
 const saveAccess = `INSERT INTO access (client, authorize, previous, token, refresh_token, expires_in, scope, redirect_uri, created_at, extra) 
 	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-
-var WriteTxn = sql.TxOptions{Isolation: sql.LevelWriteCommitted, ReadOnly: false}
 
 // SaveAccess writes AccessData.
 func (r *repo) SaveAccess(data *osin.AccessData) error {
@@ -496,6 +498,7 @@ func (r *repo) SaveAccess(data *osin.AccessData) error {
 const loadAccessSQL = `SELECT 
 	acc.token acc_token, acc.refresh_token acc_refresh_token, acc.expires_in acc_expires_in, acc.scope acc_scope, acc.redirect_uri acc_redirect_uri, acc.created_at acc_created_at, acc.extra acc_extra, acc.previous as acc_previous,
 	auth.code auth_code, auth.expires_in auth_expires_in,  auth.scope auth_scope, auth.redirect_uri auth_redirect_uri, auth.state auth_state, auth.created_at auth_created_at, auth.extra auth_extra,
+	auth.code_challenge auth_code_challenge, auth.code_challenge_method auth_code_challenge_method,
 	c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra
 	FROM access acc
 	INNER JOIN clients c ON acc.client = c.code
@@ -518,7 +521,7 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (
 		auth := new(osin.AuthorizeData)
 		var accUserData, cUserData, accPrevious sql.NullString
 		var accCreatedAt string
-		var authCode, authScope, authUserData, authRedirectUri, authState, authCreatedAt sql.NullString
+		var authCode, authScope, authUserData, authRedirectUri, authState, authCreatedAt, authCodeChallenge, authCodeChallengeMethod sql.NullString
 		var authExpiresIn sql.NullInt32
 		/*
 			acc.token acc_token, acc.refresh_token acc_refresh_token, acc.expires_in acc_expires_in, acc.scope acc_scope, acc.redirect_uri acc_redirect_uri, acc.created_at acc_created_at, acc.extra acc_extra,
@@ -526,7 +529,7 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (
 			c.code c_code, c.redirect_uri c_redirect_uri, c.secret, c.extra c_extra,
 		*/
 		err = rows.Scan(&acc.AccessToken, &acc.RefreshToken, &acc.ExpiresIn, &acc.Scope, &acc.RedirectUri, &accCreatedAt, &accUserData, &accPrevious,
-			&authCode, &authExpiresIn, &authScope, &authRedirectUri, &authState, &authCreatedAt, &authUserData,
+			&authCode, &authExpiresIn, &authScope, &authRedirectUri, &authState, &authCreatedAt, &authUserData, &authCodeChallenge, &authCodeChallengeMethod,
 			&c.Id, &c.RedirectUri, &c.Secret, &cUserData,
 		)
 
@@ -565,6 +568,12 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (
 		}
 		if authExpiresIn.Valid {
 			auth.ExpiresIn = authExpiresIn.Int32
+		}
+		if authCodeChallengeMethod.Valid {
+			auth.CodeChallengeMethod = authCodeChallengeMethod.String
+		}
+		if authCodeChallenge.Valid {
+			auth.CodeChallenge = authCodeChallenge.String
 		}
 		if cUserData.Valid {
 			c.UserData = cUserData.String

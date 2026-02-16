@@ -199,6 +199,17 @@ func mockAuth(code string, cl osin.Client) *osin.AuthorizeData {
 	}
 }
 
+func mockAuthWithCodeChallenge(code string, cl osin.Client) *osin.AuthorizeData {
+	return &osin.AuthorizeData{
+		Client:              cl,
+		Code:                code,
+		ExpiresIn:           10,
+		CreatedAt:           time.Now().Add(10 * time.Minute).Round(10 * time.Minute),
+		UserData:            vocab.IRI("https://example.com/jdoe"),
+		CodeChallengeMethod: "S256",
+		CodeChallenge:       "0000000000000000000000000000000000000000123",
+	}
+}
 func mockAccess(code string, cl osin.Client) *osin.AccessData {
 	ad := &osin.AccessData{
 		Client:        cl,

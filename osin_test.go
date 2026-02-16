@@ -161,7 +161,7 @@ func Test_repo_LoadAuthorize(t *testing.T) {
 				withBootstrap,
 				func(t *testing.T, r *repo) *repo {
 					_, _ = r.conn.Exec(createClient, "client", "secret", "redir", "extra123")
-					_, err := r.conn.Exec(saveAuthorize, "client", "one", "666", "scop", "redir", "state", hellTimeStr, "extra123")
+					_, err := r.conn.Exec(saveAuthorize, "client", "one", "666", "scop", "redir", "state", hellTimeStr, "extra123", "0000000000000000000000000000000000000000123", "PLAIN")
 					if err != nil {
 						r.errFn("unable to save authorization data: %s", err)
 					}
@@ -175,13 +175,15 @@ func Test_repo_LoadAuthorize(t *testing.T) {
 					RedirectUri: "redir",
 					UserData:    "extra123",
 				},
-				Code:        "one",
-				ExpiresIn:   666,
-				Scope:       "scop",
-				RedirectUri: "redir",
-				State:       "state",
-				CreatedAt:   hellTime,
-				UserData:    vocab.IRI("extra123"),
+				Code:                "one",
+				ExpiresIn:           666,
+				Scope:               "scop",
+				RedirectUri:         "redir",
+				State:               "state",
+				CreatedAt:           hellTime,
+				UserData:            vocab.IRI("extra123"),
+				CodeChallengeMethod: "PLAIN",
+				CodeChallenge:       "0000000000000000000000000000000000000000123",
 			},
 		},
 		{
@@ -571,6 +573,13 @@ func Test_repo_SaveAuthorize(t *testing.T) {
 			path:     t.TempDir(),
 			setupFns: []initFn{withOpenRoot, withBootstrap, withClient},
 			auth:     mockAuth("test-code123", defaultClient),
+			wantErr:  nil,
+		},
+		{
+			name:     "save mock auth with PKCE",
+			path:     t.TempDir(),
+			setupFns: []initFn{withOpenRoot, withBootstrap, withClient},
+			auth:     mockAuthWithCodeChallenge("test-code123", defaultClient),
 			wantErr:  nil,
 		},
 	}
