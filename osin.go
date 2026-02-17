@@ -20,7 +20,7 @@ const (
 	"code" varchar constraint client_code_pkey PRIMARY KEY,
 	"secret" varchar NOT NULL,
 	"redirect_uri" varchar NOT NULL,
-	"extra" BLOB DEFAULT NULL
+	"extra" TEXT DEFAULT NULL
 );
 `
 
@@ -28,13 +28,13 @@ const (
 	"client" varchar REFERENCES clients(code),
 	"code" varchar constraint authorize_code_pkey PRIMARY KEY,
 	"expires_in" INTEGER,
-	"scope" BLOB,
+	"scope" TEXT,
 	"redirect_uri" varchar NOT NULL,
-	"state" BLOB,
+	"state" TEXT,
 	"code_challenge" varchar DEFAULT NULL,
 	"code_challenge_method" varchar DEFAULT NULL,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	"extra" BLOB DEFAULT '{}'
+	"extra" TEXT DEFAULT '{}'
 );
 `
 
@@ -45,10 +45,10 @@ const (
 	"token" varchar NOT NULL,
 	"refresh_token" varchar NOT NULL,
 	"expires_in" INTEGER,
-	"scope" BLOB DEFAULT NULL,
+	"scope" TEXT DEFAULT NULL,
 	"redirect_uri" varchar NOT NULL,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	"extra" BLOB DEFAULT '{}'
+	"extra" TEXT DEFAULT '{}'
 );
 `
 
@@ -257,7 +257,7 @@ func (r *repo) CreateClient(c osin.Client) error {
 
 	data, err := assertToBytes(c.GetUserData())
 	if err != nil {
-		r.errFn("Client id %s: %+s", c.GetId(), err)
+		r.logFn("Client id %s: %+s", c.GetId(), err)
 		return err
 	}
 	params := []interface{}{

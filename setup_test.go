@@ -210,6 +210,7 @@ func mockAuthWithCodeChallenge(code string, cl osin.Client) *osin.AuthorizeData 
 		CodeChallenge:       "0000000000000000000000000000000000000000123",
 	}
 }
+
 func mockAccess(code string, cl osin.Client) *osin.AccessData {
 	ad := &osin.AccessData{
 		Client:        cl,

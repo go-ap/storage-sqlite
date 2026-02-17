@@ -312,6 +312,9 @@ func (r *repo) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
 }
 
 func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
+	if r == nil {
+		return errNotOpen
+	}
 	var c vocab.Item
 
 	var iri string
@@ -320,7 +323,7 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 
 	iris := make(vocab.IRIs, 0)
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
-	err := r.queryRow(colSel, col.GetLink()).Scan(&iri, &raw, &irisRaw)
+	err := r.queryRow(colSel, col).Scan(&iri, &raw, &irisRaw)
 	if err != nil {
 		r.logFn("unable to load collection object for %s: %s", col, err)
 		if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col)) {

@@ -34,6 +34,12 @@ func Test_repo_CreateClient(t *testing.T) {
 			setupFns: []initFn{withOpenRoot, withBootstrap},
 			arg:      &osin.DefaultClient{Id: "test", Secret: "test", RedirectUri: "/", UserData: "https://example.com"},
 		},
+		{
+			name:     "default client with invalid user data",
+			setupFns: []initFn{withOpenRoot, withBootstrap},
+			arg:      &osin.DefaultClient{Id: "test", Secret: "test", RedirectUri: "/", UserData: struct{ Example string }{Example: "foobar"}},
+			err:      errors.Errorf("Could not assert \"{foobar}\" to string"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
