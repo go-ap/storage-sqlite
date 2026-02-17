@@ -1,13 +1,13 @@
 module github.com/go-ap/storage-sqlite
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260208110334-902f6cf8c2cc
-	github.com/go-ap/cache v0.0.0-20260208110517-9ae26d9d036b
+	github.com/go-ap/activitypub v0.0.0-20260217161652-7bec47e1f870
+	github.com/go-ap/cache v0.0.0-20260217161741-05770d6d0773
 	github.com/go-ap/errors v0.0.0-20260208110149-e1b309365966
-	github.com/go-ap/filters v0.0.0-20260208110534-2b07661eb286
+	github.com/go-ap/filters v0.0.0-20260217161827-328591eba1ab
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
 	github.com/go-ap/storage-conformance-suite v0.0.0-20260216121155-e41e61167737
 	github.com/google/go-cmp v0.7.0
@@ -49,7 +49,7 @@ require (
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	modernc.org/libc v1.67.7 // indirect
+	modernc.org/libc v1.68.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
