@@ -4,10 +4,10 @@ go 1.25.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260217161652-7bec47e1f870
-	github.com/go-ap/cache v0.0.0-20260217161741-05770d6d0773
+	github.com/go-ap/activitypub v0.0.0-20260309180253-5f9949892033
+	github.com/go-ap/cache v0.0.0-20260309180527-f2e7bd7e14c5
 	github.com/go-ap/errors v0.0.0-20260208110149-e1b309365966
-	github.com/go-ap/filters v0.0.0-20260307142424-44b629447fc4
+	github.com/go-ap/filters v0.0.0-20260309180622-bea723110f0f
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
 	github.com/go-ap/storage-conformance-suite v0.0.0-20260224104644-d108133388c0
 	github.com/google/go-cmp v0.7.0
@@ -45,12 +45,11 @@ require (
 	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
-	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	modernc.org/libc v1.69.0 // indirect
+	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	quamina.net/go/quamina v1.5.2-0.20260219224429-4b74c3864009 // indirect
