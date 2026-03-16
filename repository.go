@@ -311,7 +311,7 @@ func (r *repo) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
 	return r.removeFrom(col, items...)
 }
 
-func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
+func (r *repo) addTo(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
 	if r == nil {
 		return errNotOpen
 	}
@@ -323,40 +323,42 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 
 	iris := make(vocab.IRIs, 0)
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
-	err := r.queryRow(colSel, col).Scan(&iri, &raw, &irisRaw)
-	if err != nil {
-		r.logFn("unable to load collection object for %s: %s", col, err)
-		if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col)) {
-			// NOTE(marius): this creates blocked/ignored collections if they don't exist
-			if c, err = r.createCollection(createCollection(col.GetLink(), nil)); err != nil {
-				r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
+	row := tx.QueryRow(colSel, col)
+	if row != nil {
+		if err := row.Scan(&iri, &raw, &irisRaw); err != nil {
+			r.logFn("unable to load collection object for %s: %s", col, err)
+			if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col)) {
+				// NOTE(marius): this creates blocked/ignored collections if they don't exist
+				if c, err = r.createCollection(createCollection(col.GetLink(), nil)); err != nil {
+					r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
+				}
+			}
+		} else {
+			c, err = vocab.UnmarshalJSON(raw)
+			if err != nil {
+				return errors.Annotatef(err, "unable to unmarshal Collection")
+			}
+			if err = jsonld.Unmarshal(irisRaw, &iris); err != nil {
+				return errors.Annotatef(err, "unable to unmarshal Collection items")
 			}
 		}
-	} else {
-		c, err = vocab.UnmarshalJSON(raw)
-		if err != nil {
-			return errors.Annotatef(err, "unable to unmarshal Collection")
+		if c == nil {
+			return errors.NotFoundf("not found Collection %s", col.GetLink())
 		}
-		if err = jsonld.Unmarshal(irisRaw, &iris); err != nil {
-			return errors.Annotatef(err, "unable to unmarshal Collection items")
-		}
-	}
-	if c == nil {
-		return errors.NotFoundf("not found Collection %s", col.GetLink())
-	}
 
-	// NOTE(marius): load previous items' IRIs
-	err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
-		return iris.Append(col.Collection()...)
-	})
-	if err != nil {
-		return errors.Annotatef(err, "unable to update Collection")
+		// NOTE(marius): load previous items' IRIs
+		err := vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
+			return iris.Append(col.Collection()...)
+		})
+		if err != nil {
+			return errors.Annotatef(err, "unable to update Collection")
+		}
 	}
 
 	for _, it := range items {
 		if vocab.IsIRI(it) {
 			// NOTE(marius): append received items to the list
-			if _, err = loadFromThreeTables(r, it.GetLink()); err != nil {
+			if _, err := loadFromThreeTables(r, it.GetLink()); err != nil {
 				return errors.NewNotFound(err, "invalid item to add to collection")
 			}
 		}
@@ -383,22 +385,12 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 		})
 	}
 
-	tx, err := r.conn.Begin()
-	if err != nil {
-		r.errFn("%s", errors.Annotatef(err, "transaction start error: %s"))
-	}
-	defer func() {
-		if err := tx.Commit(); err != nil {
-			r.errFn("%s", errors.Annotatef(err, "transaction commit error: %s"))
-		}
-	}()
-
 	raw, err = vocab.MarshalJSON(c)
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
 	}
 	query := `INSERT OR REPLACE INTO collections (iri, raw, items) VALUES (?, ?, ?);`
-	_, err = r.exec(query, col.GetLink(), string(raw), string(rawItems))
+	_, err = tx.Exec(query, col.GetLink(), string(raw), string(rawItems))
 	if err != nil {
 		r.errFn("query error: %s\n%s %#v", err, query, vocab.IRIs{c.GetLink()})
 		return errors.Annotatef(err, "query error")
@@ -413,7 +405,17 @@ func (r *repo) AddTo(col vocab.IRI, items ...vocab.Item) error {
 		return errNotOpen
 	}
 
-	return r.addTo(col, items...)
+	tx, err := r.conn.Begin()
+	if err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
+	}
+	defer func() {
+		if err := tx.Commit(); err != nil {
+			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
+		}
+	}()
+
+	return r.addTo(tx, col, items...)
 }
 
 // Delete
@@ -1060,24 +1062,24 @@ func delete(r repo, it vocab.Item) error {
 	iri := it.GetLink()
 	cleanupTables := []string{"meta", "actors", "objects", "activities"}
 
+	tx, err := r.conn.Begin()
+	if err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
+	}
+	defer func() {
+		if err := tx.Commit(); err != nil {
+			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
+		}
+	}()
+
 	removeFn := func(table string, iri vocab.IRI) error {
 		query := fmt.Sprintf("DELETE FROM %s where iri = $1;", table)
-		if _, err := r.conn.Exec(query, iri); err != nil {
+		if _, err := tx.Exec(query, iri); err != nil {
 			r.errFn("query error: %s\n%s", err, query)
 			return errors.Annotatef(err, "query error")
 		}
 		return nil
 	}
-
-	tx, err := r.conn.Begin()
-	if err != nil {
-		r.errFn("%s", errors.Annotatef(err, "transaction start error: %s"))
-	}
-	defer func() {
-		if err := tx.Commit(); err != nil {
-			r.errFn("%s", errors.Annotatef(err, "transaction commit error: %s"))
-		}
-	}()
 
 	for _, tbl := range cleanupTables {
 		if err := removeFn(tbl, iri); err != nil {
@@ -1107,11 +1109,11 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 	}
 	tx, err := r.conn.Begin()
 	if err != nil {
-		r.errFn("%s", errors.Annotatef(err, "transaction start error: %s"))
+		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
 	}
 	defer func() {
 		if err := tx.Commit(); err != nil {
-			r.errFn("%s", errors.Annotatef(err, "transaction commit error: %s"))
+			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
 		}
 	}()
 
@@ -1136,14 +1138,14 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 
 	query := fmt.Sprintf(`INSERT OR REPLACE INTO %s (%s) VALUES (%s);`, table, strings.Join(columns, ", "), strings.Join(tokens, ", "))
 
-	if _, err = r.conn.Exec(query, params...); err != nil {
+	if _, err = tx.Exec(query, params...); err != nil {
 		return it, errors.Annotatef(err, "query error")
 	}
 	col, _ := path.Split(iri.String())
 	if isCollectionIRI(vocab.IRI(col)) {
 		// Add private items to the collections table
 		if colIRI, k := vocab.Split(vocab.IRI(col)); k == "" {
-			if err = r.addTo(colIRI, it); err != nil {
+			if err = r.addTo(tx, colIRI, it); err != nil {
 				r.logFn("warning adding item: %s: %s", colIRI, err)
 			}
 		}
