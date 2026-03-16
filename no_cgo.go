@@ -13,15 +13,12 @@ import (
 var defaultQueryParam = url.Values{
 	"_txlock": []string{"immediate"},
 	"_pragma": []string{
-		// Faster synchronization that still keeps the data safe:
-		//"temp_store=MEMORY",
-		//"synchronous=NORMAL",
-		// Increase cache size (in this case to 64MB), the default is 2MB
-		//"cache_size=-64000",
-		// from BJohnson's recommendations to use with litestream
-		//"journal_mode=WAL",
-		"busy_timeout=" + strconv.Itoa(int(2*defaultTimeout.Seconds())),
-		//"wal_autocheckpoint=0",
+		"synchronous=NORMAL",
+		"cache_size=-64000",
+		"journal_mode=WAL",
+		"busy_timeout=" + strconv.Itoa(int(2*defaultTimeout.Milliseconds())),
+		"wal_autocheckpoint=0",
+		"strict=1",
 	},
 }
 

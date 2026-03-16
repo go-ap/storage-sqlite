@@ -80,9 +80,6 @@ func Bootstrap(conf Config) error {
 	if err = exec(createRefreshTable); err != nil {
 		return err
 	}
-	if err = exec(tuneQuery); err != nil {
-		return err
-	}
 
 	return nil
 }
