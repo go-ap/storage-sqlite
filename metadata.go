@@ -48,7 +48,7 @@ func (r *repo) PasswordSet(iri vocab.IRI, pw []byte) error {
 
 // PasswordCheck
 func (r *repo) PasswordCheck(iri vocab.IRI, pw []byte) error {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return errNotOpen
 	}
 	m := new(Metadata)
@@ -63,10 +63,10 @@ func (r *repo) PasswordCheck(iri vocab.IRI, pw []byte) error {
 
 // LoadMetadata
 func (r *repo) LoadMetadata(iri vocab.IRI, m any) error {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return errNotOpen
 	}
-	raw, err := loadMetadataFromTable(r.conn, iri)
+	raw, err := loadMetadataFromTable(r.ro, iri)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return errors.NewNotFound(err, "not found")
@@ -100,7 +100,7 @@ func (r *repo) SaveMetadata(iri vocab.IRI, m any) error {
 
 // LoadKey loads a private key for an actor found by its IRI
 func (r *repo) LoadKey(iri vocab.IRI) (crypto.PrivateKey, error) {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return nil, errNotOpen
 	}
 	m := new(Metadata)

@@ -111,9 +111,7 @@ func withBootstrap(t *testing.T, r *repo) *repo {
 }
 
 func withOpenRoot(t *testing.T, r *repo) *repo {
-	var err error
-	r.conn, err = sqlOpen(r.path)
-	if err != nil {
+	if err := r.Open(); err != nil {
 		t.Logf("Could not open db %s: %s", r.path, err)
 	}
 	return r

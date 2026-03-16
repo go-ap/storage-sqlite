@@ -85,20 +85,25 @@ func (r *repo) Clone() osin.Storage {
 
 // Close
 func (r *repo) Close() {
-	if r.conn == nil {
-		return
+	if r.conn != nil {
+		if err := r.conn.Close(); err != nil {
+			r.errFn("write connection close err: %+s", err)
+		}
+		r.conn = nil
 	}
-	if err := r.conn.Close(); err != nil {
-		r.errFn("connection close err: %+s", err)
+	if r.ro != nil {
+		if err := r.ro.Close(); err != nil {
+			r.errFn("r/o connection close err: %+s", err)
+		}
+		r.ro = nil
 	}
-	r.conn = nil
 }
 
 const getClients = "SELECT code, secret, redirect_uri, extra FROM clients;"
 
 // ListClients
 func (r *repo) ListClients() ([]osin.Client, error) {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return nil, errNotOpen
 	}
 
@@ -107,7 +112,7 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancelFn()
 
-	rows, err := r.conn.QueryContext(ctx, getClients)
+	rows, err := r.ro.QueryContext(ctx, getClients)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.NewNotFound(err, "No clients found")
@@ -197,7 +202,7 @@ func getClient(conn *sql.DB, ctx context.Context, code string) (osin.Client, err
 
 // GetClient
 func (r *repo) GetClient(code string) (osin.Client, error) {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return nil, errNotOpen
 	}
 	if code == "" {
@@ -207,7 +212,7 @@ func (r *repo) GetClient(code string) (osin.Client, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancelFn()
 
-	return getClient(r.conn, ctx, code)
+	return getClient(r.ro, ctx, code)
 }
 
 const updateClient = "UPDATE clients SET (secret, redirect_uri, extra) = (?, ?, ?) WHERE code=?"
@@ -406,7 +411,7 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 
 // LoadAuthorize looks up AuthorizeData by a code.
 func (r *repo) LoadAuthorize(code string) (*osin.AuthorizeData, error) {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return nil, errNotOpen
 	}
 	if code == "" {
@@ -416,7 +421,7 @@ func (r *repo) LoadAuthorize(code string) (*osin.AuthorizeData, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancelFn()
 
-	return loadAuthorize(r.conn, ctx, code)
+	return loadAuthorize(r.ro, ctx, code)
 }
 
 const removeAuthorize = "DELETE FROM authorize WHERE code=?"
@@ -607,7 +612,7 @@ var ReadOnlyTxn = sql.TxOptions{
 
 // LoadAccess retrieves access data by token. Client information MUST be loaded together.
 func (r *repo) LoadAccess(code string) (*osin.AccessData, error) {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return nil, errNotOpen
 	}
 	if code == "" {
@@ -617,7 +622,7 @@ func (r *repo) LoadAccess(code string) (*osin.AccessData, error) {
 	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancelFn()
 
-	return loadAccess(r.conn, ctx, code, true)
+	return loadAccess(r.ro, ctx, code, true)
 }
 
 const removeAccess = "DELETE FROM access WHERE token=?"
@@ -641,7 +646,7 @@ const loadRefresh = "SELECT access_token FROM refresh WHERE token=? LIMIT 1"
 
 // LoadRefresh retrieves refresh AccessData. Client information MUST be loaded together.
 func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return nil, errNotOpen
 	}
 	if code == "" {
@@ -652,7 +657,7 @@ func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
 	defer cancelFn()
 
 	var access sql.NullString
-	err := r.conn.QueryRowContext(ctx, loadRefresh, code).Scan(&access)
+	err := r.ro.QueryRowContext(ctx, loadRefresh, code).Scan(&access)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.NewNotFound(err, "Unable to load refresh token")
@@ -660,7 +665,7 @@ func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
 		return nil, errors.Annotatef(err, "Unable to load refresh token")
 	}
 
-	return loadAccess(r.conn, ctx, access.String, true)
+	return loadAccess(r.ro, ctx, access.String, true)
 }
 
 const removeRefresh = "DELETE FROM refresh WHERE token=?"

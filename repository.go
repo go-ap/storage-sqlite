@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -55,6 +56,7 @@ func New(c Config) (*repo, error) {
 
 type repo struct {
 	conn  *sql.DB
+	ro    *sql.DB
 	path  string
 	cache cache.CanStore
 	logFn loggerFn
@@ -68,10 +70,19 @@ func (r *repo) Open() (err error) {
 	if r == nil {
 		return errors.Newf("Unable to open uninitialized db")
 	}
+	// NOTE(marius): we split the connection into:
 	if r.conn == nil {
+		// a "write only" connection - allowing only one concurrent query execution
 		if r.conn, err = sqlOpen(r.path); err != nil {
 			return err
 		}
+		r.conn.SetMaxOpenConns(1)
+
+		// and a "read only" connection - which allows multiple connections concurrently
+		if r.ro, err = sqlOpen(r.path); err != nil {
+			return err
+		}
+		r.ro.SetMaxOpenConns(max(2, runtime.NumCPU()))
 	}
 	return err
 }
@@ -152,7 +163,7 @@ func getCollectionTable(colName vocab.CollectionPath) vocab.CollectionPath {
 
 // Load
 func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
-	if r == nil || r.conn == nil {
+	if r == nil || r.ro == nil {
 		return nil, errNotOpen
 	}
 
@@ -206,21 +217,30 @@ func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface,
 	if col.GetLink() == "" {
 		return col, nilItemIRIErr
 	}
-	return r.createCollection(col)
+	tx, err := r.conn.Begin()
+	if err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
+	}
+	defer func() {
+		if err := tx.Commit(); err != nil {
+			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
+		}
+	}()
+	return r.createCollection(tx, col)
 }
 
 func isUniqueError(err error) bool {
 	return !strings.Contains(err.Error(), "UNIQUE constraint failed: collections.iri")
 }
 
-func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
+func (r *repo) createCollection(tx *sql.Tx, col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
 	raw, err := vocab.MarshalJSON(col)
 	if err != nil {
 		r.errFn("unable to marshal collection %s: %s", col.GetLink(), err)
 		return col, errors.Annotatef(err, "unable to save Collection")
 	}
 	ins := "INSERT INTO collections (iri, raw, items) VALUES (?, ?, ?);"
-	if _, err = r.conn.Exec(ins, col.GetLink(), string(raw), string(emptyCol)); err != nil && !isUniqueError(err) {
+	if _, err = tx.Exec(ins, col.GetLink(), string(raw), string(emptyCol)); err != nil && !isUniqueError(err) {
 		r.errFn("query error when creating %s: %s\n%s", col.GetLink(), err, ins)
 		return col, errors.Annotatef(err, "unable to save Collection")
 	}
@@ -229,11 +249,11 @@ func (r *repo) createCollection(col vocab.CollectionInterface) (vocab.Collection
 }
 
 func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
-	if r.conn == nil {
-		return errors.Newf("nil sql connection")
+	if r.ro == nil || r.conn == nil {
+		return errNotOpen
 	}
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
-	rows, err := r.conn.Query(colSel, col.GetLink())
+	rows, err := r.ro.Query(colSel, col.GetLink())
 	if err != nil {
 		return errors.NotFoundf("Unable to load %s", col.GetLink())
 	}
@@ -288,20 +308,6 @@ func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
 	return nil
 }
 
-func (r *repo) exec(query string, args ...any) (sql.Result, error) {
-	if r.conn == nil {
-		return nil, errNotOpen
-	}
-	return r.conn.Exec(query, args...)
-}
-
-func (r *repo) queryRow(query string, args ...any) *sql.Row {
-	if r.conn == nil {
-		return &sql.Row{}
-	}
-	return r.conn.QueryRow(query, args...)
-}
-
 // RemoveFrom
 func (r *repo) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
 	if r == nil || r.conn == nil {
@@ -320,7 +326,6 @@ func (r *repo) addTo(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
 	var iri string
 	var raw []byte
 	var irisRaw []byte
-
 	iris := make(vocab.IRIs, 0)
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
 	row := tx.QueryRow(colSel, col)
@@ -329,7 +334,7 @@ func (r *repo) addTo(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
 			r.logFn("unable to load collection object for %s: %s", col, err)
 			if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col)) {
 				// NOTE(marius): this creates blocked/ignored collections if they don't exist
-				if c, err = r.createCollection(createCollection(col.GetLink(), nil)); err != nil {
+				if c, err = r.createCollection(tx, createCollection(col.GetLink(), nil)); err != nil {
 					r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
 				}
 			}
@@ -513,7 +518,7 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 		}
 	}
 
-	conn := r.conn
+	conn := r.ro
 	selects := make([]string, 0)
 	params := make([]any, 0)
 	for _, table := range []string{"actors", "objects", "activities"} {
@@ -621,7 +626,7 @@ func isCollectionIRI(iri vocab.IRI) bool {
 }
 
 func loadFromOneTable(r *repo, iri vocab.IRI, table vocab.CollectionPath, f ...filters.Check) (vocab.CollectionInterface, error) {
-	conn := r.conn
+	conn := r.ro
 	if isSingleItem(f...) && r.cache != nil {
 		if cachedIt := r.cache.Load(iri); cachedIt != nil {
 			return &vocab.ItemCollection{cachedIt}, nil
@@ -968,7 +973,7 @@ func isHiddenCollectionIRI(i vocab.IRI) bool {
 }
 
 func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface, error) {
-	conn := r.conn
+	conn := r.ro
 
 	selects := []string{"c.iri = ? "}
 	params := []any{iri}
