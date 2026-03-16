@@ -383,6 +383,16 @@ func (r *repo) addTo(col vocab.IRI, items ...vocab.Item) error {
 		})
 	}
 
+	tx, err := r.conn.Begin()
+	if err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction start error: %s"))
+	}
+	defer func() {
+		if err := tx.Commit(); err != nil {
+			r.errFn("%s", errors.Annotatef(err, "transaction commit error: %s"))
+		}
+	}()
+
 	raw, err = vocab.MarshalJSON(c)
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal Collection")
@@ -1046,18 +1056,28 @@ WHERE %s ORDER BY COALESCE(x.published, y.published, o.published) DESC LIMIT %d`
 	return &res, err
 }
 
-func delete(l repo, it vocab.Item) error {
+func delete(r repo, it vocab.Item) error {
 	iri := it.GetLink()
 	cleanupTables := []string{"meta", "actors", "objects", "activities"}
 
 	removeFn := func(table string, iri vocab.IRI) error {
 		query := fmt.Sprintf("DELETE FROM %s where iri = $1;", table)
-		if _, err := l.conn.Exec(query, iri); err != nil {
-			l.errFn("query error: %s\n%s", err, query)
+		if _, err := r.conn.Exec(query, iri); err != nil {
+			r.errFn("query error: %s\n%s", err, query)
 			return errors.Annotatef(err, "query error")
 		}
 		return nil
 	}
+
+	tx, err := r.conn.Begin()
+	if err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction start error: %s"))
+	}
+	defer func() {
+		if err := tx.Commit(); err != nil {
+			r.errFn("%s", errors.Annotatef(err, "transaction commit error: %s"))
+		}
+	}()
 
 	for _, tbl := range cleanupTables {
 		if err := removeFn(tbl, iri); err != nil {
@@ -1065,8 +1085,8 @@ func delete(l repo, it vocab.Item) error {
 		}
 	}
 
-	if l.cache != nil {
-		l.cache.Delete(iri)
+	if r.cache != nil {
+		r.cache.Delete(iri)
 	}
 	return nil
 }
@@ -1085,6 +1105,15 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 		r.errFn("query error: %s", err)
 		return it, errors.Annotatef(err, "query error")
 	}
+	tx, err := r.conn.Begin()
+	if err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction start error: %s"))
+	}
+	defer func() {
+		if err := tx.Commit(); err != nil {
+			r.errFn("%s", errors.Annotatef(err, "transaction commit error: %s"))
+		}
+	}()
 
 	columns := []string{"raw, iri"}
 	tokens := []string{"?, ?"}

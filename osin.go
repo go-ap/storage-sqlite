@@ -648,7 +648,9 @@ func (r *repo) LoadRefresh(code string) (*osin.AccessData, error) {
 		return nil, errors.Newf("Empty refresh code")
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancelFn := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancelFn()
+
 	var access sql.NullString
 	err := r.conn.QueryRowContext(ctx, loadRefresh, code).Scan(&access)
 	if err != nil {
