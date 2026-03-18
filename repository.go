@@ -494,7 +494,7 @@ func loadMetadataFromTable(conn *sql.DB, iri vocab.IRI) ([]byte, error) {
 type Filterable = vocab.LinkOrIRI
 
 func isSingleItem(f ...filters.Check) bool {
-	return len(f) == 0 || len(filters.IDChecks(f...)) == 1
+	return len(f) == 0 || len(filters.SameIDChecks(f...)) == 1
 }
 
 func stripFiltersFromIRI(iri vocab.IRI) vocab.IRI {
@@ -511,10 +511,10 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 		if len(f) == 0 {
 			f = filters.Checks{filters.SameID(iri)}
 		}
-		if r.cache != nil {
-			if cachedIt := r.cache.Load(iri); cachedIt != nil {
-				return &vocab.ItemCollection{cachedIt}, nil
-			}
+	}
+	if r.cache != nil {
+		if cachedIt := r.cache.Load(iri); cachedIt != nil {
+			return &vocab.ItemCollection{cachedIt}, nil
 		}
 	}
 
