@@ -353,10 +353,10 @@ func loadAuthorize(conn *sql.DB, ctx context.Context, code string) (*osin.Author
 	var a *osin.AuthorizeData
 
 	rows, err := conn.QueryContext(ctx, loadAuthorizeSQL, code)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errors.NotFoundf("Unable to load authorize token")
-	} else if err != nil {
-		//s.errFn(log.Ctx{"code": code, "table": "authorize", "operation": "select"}, err.Error())
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.NotFoundf("Unable to load authorize token")
+		}
 		return nil, errors.Annotatef(err, "Unable to load authorize token")
 	}
 	defer rows.Close()
@@ -695,19 +695,21 @@ func (r *repo) saveRefresh(ctx context.Context, refresh, access string) (err err
 	return nil
 }
 
-func assertToBytes(in interface{}) ([]byte, error) {
-	var ok bool
-	var data string
+func assertToBytes(in any) ([]byte, error) {
 	if in == nil {
 		return nil, nil
-	} else if data, ok = in.(string); ok {
+	}
+	switch data := in.(type) {
+	case string:
 		return []byte(data), nil
-	} else if byt, ok := in.([]byte); ok {
-		return byt, nil
-	} else if byt, ok := in.(json.RawMessage); ok {
-		return byt, nil
-	} else if str, ok := in.(fmt.Stringer); ok {
-		return []byte(str.String()), nil
+	case []byte:
+		return data, nil
+	case json.RawMessage:
+		return data, nil
+	case fmt.Stringer:
+		return []byte(data.String()), nil
+	case fmt.GoStringer:
+		return []byte(data.GoString()), nil
 	}
 	return nil, errors.Errorf(`Could not assert "%v" to string`, in)
 }

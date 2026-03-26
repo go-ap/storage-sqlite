@@ -9,7 +9,7 @@ require (
 	github.com/go-ap/errors v0.0.0-20260208110149-e1b309365966
 	github.com/go-ap/filters v0.0.0-20260318121108-558e05da8dfd
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
-	github.com/go-ap/storage-conformance-suite v0.0.0-20260224104644-d108133388c0
+	github.com/go-ap/storage-conformance-suite v0.0.0-20260324164352-216312df2896
 	github.com/google/go-cmp v0.7.0
 	github.com/mattn/go-sqlite3 v1.14.37
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f

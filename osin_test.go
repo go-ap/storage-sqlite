@@ -293,10 +293,10 @@ func Test_repo_Clone(t *testing.T) {
 	ss := s.Clone()
 	s1, ok := ss.(*repo)
 	if !ok {
-		t.Errorf("Error when cloning repoage, unable to convert interface back to %T: %T", s, ss)
+		t.Errorf("Error when cloning storage, unable to convert interface back to %T: %T", s, ss)
 	}
 	if !reflect.DeepEqual(s, s1) {
-		t.Errorf("Error when cloning repoage, invalid pointer returned %p: %p", s, s1)
+		t.Errorf("Error when cloning storage, invalid pointer returned %p: %p", s, s1)
 	}
 }
 

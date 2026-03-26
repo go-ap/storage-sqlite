@@ -491,8 +491,6 @@ func loadMetadataFromTable(conn *sql.DB, iri vocab.IRI) ([]byte, error) {
 	return meta, err
 }
 
-type Filterable = vocab.LinkOrIRI
-
 func isSingleItem(f ...filters.Check) bool {
 	return len(f) == 0 || len(filters.SameIDChecks(f...)) == 1
 }
