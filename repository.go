@@ -16,6 +16,7 @@ import (
 	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
 	"github.com/go-ap/jsonld"
+	"github.com/leporo/sqlf"
 )
 
 var encodeItemFn = vocab.MarshalJSON
@@ -517,22 +518,34 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 	}
 
 	conn := r.ro
-	selects := make([]string, 0)
-	params := make([]any, 0)
+	var unions *sqlf.Stmt
 	for _, table := range []string{"actors", "objects", "activities"} {
-		clauses, values := filters.GetWhereClauses(f...)
-		selects = append(selects, fmt.Sprintf("SELECT iri, raw, published FROM %s WHERE %s", table, strings.Join(clauses, " AND ")))
-		params = append(params, values...)
+		st := sqlf.From(table)
+		st.Select("iri").Select("raw").Select("published")
+		_ = filters.SQLWhere(st, f...)
+		if unions == nil {
+			unions = st
+		} else {
+			unions.Union(true, st)
+		}
 	}
 
 	ret := make(vocab.ItemCollection, 0)
+	topSt := sqlf.From("("+unions.String()+") as x", unions.Args()...)
+	topSt.Select("iri").Select("raw")
+	topSt.OrderBy("published")
+	filters.SQLLimit(topSt, f...)
 
-	limit := filters.GetLimit(f...)
-	if limit < 0 {
-		limit = filters.MaxItems
+	sq := topSt.String()
+	ag := topSt.Args()
+
+	st, err := conn.Prepare(sq)
+	if err != nil {
+		return nil, errors.Annotatef(err, "unable to prepare statement")
 	}
-	sel := fmt.Sprintf(`SELECT iri, raw FROM (%s) ORDER BY published DESC LIMIT %d;`, strings.Join(selects, " UNION "), limit)
-	rows, err := conn.Query(sel, params...)
+	defer st.Close()
+
+	rows, err := st.Query(ag...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.NotFoundf("no rows found")
@@ -634,26 +647,23 @@ func loadFromOneTable(r *repo, iri vocab.IRI, table vocab.CollectionPath, f ...f
 		return nil, errors.Newf("invalid table")
 	}
 
+	selS := sqlf.From(string(table))
+	selS.Select("iri").Select("raw")
 	ret := make(vocab.ItemCollection, 0)
-	clauses, values := filters.GetWhereClauses(f...)
-	if isStorageCollectionIRI(iri) {
-		clauses = append(clauses, `iri like ?`)
-		values = append(values, stripFiltersFromIRI(iri)+"%")
-	} else if len(clauses) == 0 {
-		clauses = append(clauses, `iri = ?`)
-		values = append(values, stripFiltersFromIRI(iri))
-	}
-	if len(clauses) == 0 {
-		clauses = []string{"true"}
-	}
+	_ = filters.SQLWhere(selS, f...)
 
-	limit := filters.GetLimit(f...)
-	if limit < 0 {
-		limit = filters.MaxItems
-	}
+	filters.SQLLimit(selS, f...)
+	selS.OrderBy("updated DESC")
 
-	sel := fmt.Sprintf("SELECT iri, raw FROM %s WHERE %s ORDER BY updated DESC LIMIT %d;", table, strings.Join(clauses, " AND "), limit)
-	rows, err := conn.Query(sel, values...)
+	sel := selS.String()
+	args := selS.Args()
+	st, err := conn.Prepare(sel)
+	if err != nil {
+		return nil, errors.Annotatef(err, "unable to prepare statement")
+	}
+	defer st.Close()
+
+	rows, err := st.Query(args...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -976,51 +986,46 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.
 	selects := []string{"c.iri = ? "}
 	params := []any{iri}
 
+	table := getCollectionTypeFromIRI(iri)
+	s := sqlf.From("collections c")
+	s.Select("c.iri")
+	s.Where("c.iri = ?", iri)
+
 	if isActorsCollectionIRI(iri) {
 		// NOTE(marius): if loading the /actors storage collection we should keep only
 		// items that are "namespaced" in that collection.
 		// This fixes an issue that we would return also the root service for FedBOX, or collections
 		selects = append(selects, "x.iri LIKE ?")
 		params = append(params, iri.String()+"%")
+		s.Where("x.iri like ?", iri.String()+"%")
 	}
-	table := getCollectionTypeFromIRI(iri)
-	var selWithItems string
+
+	filters.SQLLimit(s, f...)
 	if isStorageCollectionIRI(iri) {
-		limit := filters.GetLimit(f...)
-		if limit < 0 {
-			limit = filters.MaxItems
-		}
-		sel := `SELECT c.iri,
-	json_patch(
-		json(c.raw),
-		json_object('orderedItems', json_group_array(json(x.raw)))
-	) raw 
-FROM collections c 
-	LEFT JOIN %s x WHERE %s GROUP BY c.iri ORDER BY x.published DESC LIMIT %d;`
-		selWithItems = fmt.Sprintf(sel, table, strings.Join(selects, " AND "), limit)
+		s.Select(`json_patch(json(c.raw), json_object('orderedItems', json_group_array(json(x.raw)))) raw`)
+		s.LeftJoin(string(table)+" x", "true")
+		s.OrderBy("x.published DESC")
 	} else {
-		limit := filters.GetLimit(f...)
-		if limit < 0 {
-			limit = filters.MaxItems
-		}
-		where := strings.Join(selects, " AND ")
-		selWithItems = fmt.Sprintf(`
-	SELECT c.iri iri,
-		json_patch(
-			json(c.raw),
-			json_object('orderedItems', json_group_array(json(coalesce(x.raw, y.raw, o.raw))))
-		) raw
-	FROM collections c, json_each(json_insert(c.items, '$[0]', null))
-		LEFT JOIN activities x ON value = x.iri 
-		LEFT JOIN actors y ON value = y.iri 
-		LEFT JOIN objects o ON value = o.iri 
-WHERE %s ORDER BY COALESCE(x.published, y.published, o.published) DESC LIMIT %d`, where, limit)
+		s.Select(`json_patch(json(c.raw), json_object('orderedItems', json_group_array(json(coalesce(x.raw, y.raw, o.raw))))) raw`)
+		s.From(`json_each(json_insert(c.items, '$[0]', null))`)
+		s.LeftJoin("activities x", "value = x.iri")
+		s.LeftJoin("actors y", "value = y.iri")
+		s.LeftJoin("objects o", "value = o.iri")
+		s.OrderBy("COALESCE(x.published, y.published, o.published) DESC")
 	}
+
+	sq := s.String()
+	args := s.Args()
+
+	st, err := conn.Prepare(sq)
+	if err != nil {
+		return nil, errors.Annotatef(err, "unable to prepare statement")
+	}
+	defer st.Close()
 
 	var cIri sql.NullString
 	var raw []byte
-
-	if err := conn.QueryRow(selWithItems, params...).Scan(&cIri, &raw); err != nil {
+	if err = st.QueryRow(args...).Scan(&cIri, &raw); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.NotFoundf("failed to find items in collection %s", iri)
 		}
@@ -1031,7 +1036,6 @@ WHERE %s ORDER BY COALESCE(x.published, y.published, o.published) DESC LIMIT %d`
 		return nil, errors.NotFoundf("Unable to find items in collection %s", iri)
 	}
 
-	var err error
 	res := vocab.OrderedCollection{}
 	if err = decodeFn(raw, &res); err != nil {
 		return nil, errors.Annotatef(err, "Collection unmarshal error")

@@ -1070,7 +1070,7 @@ func Test_repo_Load_UnhappyPath(t *testing.T) {
 			name:     "not bootstrapped",
 			args:     args{iri: "https://example.com"},
 			setupFns: []initFn{withOpenRoot},
-			wantErr:  errors.Annotatef(errNoSuchTable, "unable to run select"),
+			wantErr:  errors.Annotatef(errNoSuchTable, "unable to prepare statement"),
 		},
 		{
 			name:     "empty iri gives us not found",
