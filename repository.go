@@ -533,7 +533,6 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 	ret := make(vocab.ItemCollection, 0)
 	topSt := sqlf.From("("+unions.String()+") as x", unions.Args()...)
 	topSt.Select("iri").Select("raw")
-	topSt.OrderBy("published")
 	filters.SQLLimit(topSt, f...)
 
 	sq := topSt.String()
