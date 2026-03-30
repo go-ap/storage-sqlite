@@ -23,6 +23,7 @@ test: go.sum clean
 	@
 	CGO_ENABLED=1 $(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json > tests.json || true
 	CGO_ENABLED=0 $(TEST) $(TEST_FLAGS) -cover $(TEST_TARGET) -json >> tests.json || true
+	go tool tparse -file tests.json
 	$(GO) tool tparse -file tests.json
 
 coverage: go.sum clean

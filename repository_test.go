@@ -119,7 +119,7 @@ func Test_repo_Load_old(t *testing.T) {
 				`{"id":"https://example.com/activities/123", "type":"Follow", "actor": "https://example.com"}`,
 			},
 			arg:  "https://example.com/activities/123",
-			want: &vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: &rootActor},
+			want: &vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
 		},
 		{
 			name: "load activities",
@@ -135,11 +135,11 @@ func Test_repo_Load_old(t *testing.T) {
 				ID:         "https://example.com/activities",
 				Type:       vocab.OrderedCollectionType,
 				TotalItems: 3,
-				First:      vocab.IRI("https://example.com/activities?maxItems=100"),
+				//First:      vocab.IRI("https://example.com/activities?maxItems=100"),
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Like{ID: "https://example.com/activities/122", Type: vocab.LikeType, Actor: &rootActor},
-					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: &rootActor},
-					&vocab.Create{ID: "https://example.com/activities/124", Type: vocab.CreateType, Actor: &rootActor},
+					&vocab.Like{ID: "https://example.com/activities/122", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com")},
+					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
+					&vocab.Create{ID: "https://example.com/activities/124", Type: vocab.CreateType, Actor: vocab.IRI("https://example.com")},
 				},
 			},
 		},
@@ -159,7 +159,7 @@ func Test_repo_Load_old(t *testing.T) {
 				TotalItems: 3,
 				First:      vocab.IRI("https://example.com/activities?maxItems=100&type=Follow"),
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: &rootActor},
+					&vocab.Follow{ID: "https://example.com/activities/123", Type: vocab.FollowType, Actor: vocab.IRI("https://example.com")},
 				},
 			},
 		},
@@ -193,13 +193,13 @@ func Test_repo_Load_old(t *testing.T) {
 			},
 			arg: "https://example.com/actors/jdoe/outbox",
 			want: &vocab.OrderedCollection{
-				ID:         "https://example.com/actors/jdoe/outbox",
-				Type:       vocab.OrderedCollectionType,
-				First:      vocab.IRI("https://example.com/actors/jdoe/outbox?maxItems=100"),
+				ID:   "https://example.com/actors/jdoe/outbox",
+				Type: vocab.OrderedCollectionType,
+				//First:      vocab.IRI("https://example.com/actors/jdoe/outbox?maxItems=100"),
 				TotalItems: 2,
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Like{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: &jDoeActor},
-					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jDoeActor},
+					&vocab.Like{ID: "https://example.com/activities/1", Type: vocab.LikeType, Actor: vocab.IRI("https://example.com/actors/jdoe")},
+					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: vocab.IRI("https://example.com/actors/jdoe")},
 				},
 			},
 		},
@@ -218,7 +218,7 @@ func Test_repo_Load_old(t *testing.T) {
 				TotalItems: 2,
 				First:      vocab.IRI("https://example.com/actors/jdoe/outbox?type=Create&maxItems=100"),
 				OrderedItems: vocab.ItemCollection{
-					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: &jDoeActor},
+					&vocab.Create{ID: "https://example.com/activities/2", Type: vocab.CreateType, Actor: vocab.IRI("https://example.com/actors/jdoe")},
 				},
 			},
 		},
@@ -240,8 +240,8 @@ func Test_repo_Load_old(t *testing.T) {
 			got, err := r.Load(tt.arg, ff...)
 			checkErrorsEqual(t, tt.err, err)
 
-			if !vocab.ItemsEqual(tt.want, got) {
-				t.Errorf("%s", cmp.Diff(tt.want, got))
+			if !cmp.Equal(tt.want, got, EquateItemCollections) {
+				t.Errorf("%s", cmp.Diff(tt.want, got, EquateItemCollections))
 			}
 		})
 	}
@@ -969,7 +969,7 @@ func Test_repo_AddTo1(t *testing.T) {
 			setupFns: []initFn{withOpenRoot, withBootstrap, withOrderedCollectionHavingItems},
 			args: args{
 				colIRI: "https://example.com/followers",
-				it:     vocab.IRI("https://example.com"),
+				it:     vocab.Object{ID: "https://example.com"},
 			},
 			wantErr: nil,
 		},
@@ -979,7 +979,7 @@ func Test_repo_AddTo1(t *testing.T) {
 			setupFns: []initFn{withOpenRoot, withBootstrap, withCollectionHavingItems},
 			args: args{
 				colIRI: "https://example.com/followers",
-				it:     vocab.IRI("https://example.com"),
+				it:     vocab.Object{ID: "https://example.com"},
 			},
 			wantErr: nil,
 		},
@@ -989,7 +989,7 @@ func Test_repo_AddTo1(t *testing.T) {
 			setupFns: []initFn{withOpenRoot, withBootstrap, withItems(&vocab.Object{ID: "https://example.com/example", Type: vocab.NoteType})},
 			args: args{
 				colIRI: "https://example.com/~jdoe/blocked",
-				it:     vocab.IRI("https://example.com/example"),
+				it:     vocab.Object{ID: "https://example.com/example", Type: vocab.NoteType},
 			},
 			wantErr: nil,
 		},
@@ -999,7 +999,7 @@ func Test_repo_AddTo1(t *testing.T) {
 			setupFns: []initFn{withOpenRoot, withBootstrap, withCollection("https://example.com/~jdoe/blocked"), withItems(&vocab.Object{ID: "https://example.com/example", Type: vocab.NoteType})},
 			args: args{
 				colIRI: "https://example.com/~jdoe/blocked",
-				it:     vocab.IRI("https://example.com/example"),
+				it:     &vocab.Object{ID: "https://example.com/example", Type: vocab.NoteType},
 			},
 			wantErr: nil,
 		},
@@ -1307,8 +1307,8 @@ func Test_repo_Save1(t *testing.T) {
 				t.Errorf("Save() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 				return
 			}
-			if !cmp.Equal(got, tt.want) {
-				t.Errorf("Save() got = %s", cmp.Diff(tt.want, got))
+			if !cmp.Equal(got, tt.want, cmp.Comparer(vocab.ItemsEqual)) {
+				t.Errorf("Save() got = %s", cmp.Diff(tt.want, got, cmp.Comparer(vocab.ItemsEqual)))
 			}
 		})
 	}

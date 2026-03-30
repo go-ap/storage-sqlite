@@ -70,6 +70,26 @@ func compareItemCollections(x, y interface{}) bool {
 
 var EquateItemCollections = cmp.FilterValues(areItemCollections, cmp.Comparer(compareItemCollections))
 
+func areItems(a, b any) bool {
+	_, ok1 := a.(vocab.Item)
+	_, ok2 := b.(vocab.Item)
+	return ok1 && ok2
+}
+
+func compareItems(x, y interface{}) bool {
+	var i1 vocab.Item
+	var i2 vocab.Item
+	if ic1, ok := x.(vocab.Item); ok {
+		i1 = ic1
+	}
+	if ic2, ok := y.(vocab.Item); ok {
+		i2 = ic2
+	}
+	return vocab.ItemsEqual(i1, i2)
+}
+
+var EquateItems = cmp.FilterValues(areItems, cmp.Comparer(compareItems))
+
 type fields struct {
 	path  string
 	cache cache.CanStore
@@ -122,8 +142,8 @@ var (
 		vocab.IRI("https://example.com/plain-iri"),
 		&vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType},
 		&vocab.Place{ID: "https://example.com/arctic", Type: vocab.PlaceType},
-		//&vocab.Profile{ID: "https://example.com/~jdoe/profile", Type: vocab.ProfileType},
-		&vocab.Link{ID: "https://example.com/1", Href: "https://example.com/1", Type: vocab.LinkType},
+		&vocab.Profile{ID: "https://example.com/~jdoe/profile", Type: vocab.ProfileType},
+		&vocab.Link{ID: "https://example.com/l1", Href: "https://example.com/1", Type: vocab.LinkType},
 		&vocab.Actor{ID: "https://example.com/~jdoe", Type: vocab.PersonType},
 		&vocab.Activity{ID: "https://example.com/~jdoe/1", Type: vocab.UpdateType},
 		&vocab.Object{ID: "https://example.com/~jdoe/tag-none", Type: vocab.UpdateType},
