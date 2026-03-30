@@ -249,7 +249,7 @@ func (r *repo) UpdateClient(c osin.Client) error {
 	return nil
 }
 
-const createClient = "INSERT INTO clients (code, secret, redirect_uri, extra) VALUES (?, ?, ?, ?)"
+const createClient = "INSERT OR REPLACE INTO clients (code, secret, redirect_uri, extra) VALUES (?, ?, ?, ?)"
 
 // CreateClient
 func (r *repo) CreateClient(c osin.Client) error {
@@ -686,7 +686,7 @@ func (r *repo) RemoveRefresh(code string) error {
 	return nil
 }
 
-const saveRefresh = "INSERT INTO refresh (token, access_token) VALUES (?, ?)"
+const saveRefresh = "INSERT OR REPLACE INTO refresh (token, access_token) VALUES (?, ?)"
 
 func (r *repo) saveRefresh(ctx context.Context, refresh, access string) (err error) {
 	if _, err = r.conn.ExecContext(ctx, saveRefresh, refresh, access); err != nil {
