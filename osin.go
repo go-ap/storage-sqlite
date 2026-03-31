@@ -120,10 +120,6 @@ func (r *repo) ListClients() ([]osin.Client, error) {
 		r.errFn("Error listing clients: %+s", err)
 		return result, errors.Annotatef(err, "Unable to load clients")
 	}
-
-	if errors.Is(rows.Err(), sql.ErrNoRows) {
-		return nil, errors.NewNotFound(err, "No clients found")
-	}
 	defer rows.Close()
 
 	for rows.Next() {
