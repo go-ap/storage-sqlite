@@ -179,7 +179,7 @@ var (
 
 func withMockItems(t *testing.T, r *repo) *repo {
 	for _, it := range mockItems {
-		if _, err := save(r, it); err != nil {
+		if _, err := r.Save(it); err != nil {
 			t.Errorf("unable to save item: %s: %s", it.GetLink(), err)
 		}
 	}
@@ -315,7 +315,7 @@ func withGeneratedRoot(root vocab.Item) initFn {
 func withGeneratedItems(items vocab.ItemCollection) initFn {
 	return func(t *testing.T, r *repo) *repo {
 		for _, it := range items {
-			if _, err := save(r, it); err != nil {
+			if _, err := r.Save(it); err != nil {
 				t.Errorf("unable to save %T[%s]: %s", it, it.GetLink(), err)
 			}
 		}

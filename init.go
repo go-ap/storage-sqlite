@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS collections (
   "bcc" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.bcc')) VIRTUAL,
   "published" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.published')) VIRTUAL,
   "updated" TEXT GENERATED ALWAYS AS (json_extract(raw, '$.updated')) VIRTUAL,
-  "items" TEXT
+  "items" TEXT DEFAULT '[]'
 ) STRICT;
 CREATE INDEX collections_type ON collections(type);
 CREATE INDEX collections_published ON collections(published);

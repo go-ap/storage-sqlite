@@ -4,12 +4,12 @@ go 1.25.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260330133938-2e4972ff690b
-	github.com/go-ap/cache v0.0.0-20260330134207-1b8d90fda632
+	github.com/go-ap/activitypub v0.0.0-20260402093412-528d4eaf86a8
+	github.com/go-ap/cache v0.0.0-20260402093807-65da0efac70f
 	github.com/go-ap/errors v0.0.0-20260208110149-e1b309365966
-	github.com/go-ap/filters v0.0.0-20260330134234-a70aa1bf886d
+	github.com/go-ap/filters v0.0.0-20260402093843-285aba89aa03
 	github.com/go-ap/jsonld v0.0.0-20251216162253-e38fa664ea77
-	github.com/go-ap/storage-conformance-suite v0.0.0-20260330134316-7e2ac19ccca2
+	github.com/go-ap/storage-conformance-suite v0.0.0-20260402080021-eac1c19dffa3
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.38

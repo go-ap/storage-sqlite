@@ -187,10 +187,7 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 	return maybeIt, nil
 }
 
-var (
-	nilItemErr    = errors.Errorf("nil item")
-	nilItemIRIErr = errors.Errorf("nil IRI for item")
-)
+var errNilItem = errors.Errorf("nil item")
 
 // Save
 func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
@@ -198,26 +195,9 @@ func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
 		return nil, errNotOpen
 	}
 	if vocab.IsNil(it) {
-		return nil, errors.Newf("Unable to save nil element")
+		return nil, errNilItem
 	}
 
-	return save(r, it)
-}
-
-var emptyCol = []byte{'[', ']'}
-
-// Create
-func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
-	if r == nil || r.conn == nil {
-		return nil, errNotOpen
-	}
-
-	if vocab.IsNil(col) {
-		return nil, nilItemErr
-	}
-	if col.GetLink() == "" {
-		return col, nilItemIRIErr
-	}
 	tx, err := r.conn.Begin()
 	if err != nil {
 		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
@@ -227,26 +207,17 @@ func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface,
 			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
 		}
 	}()
-	return r.createCollection(tx, col)
+	return r.save(tx, it)
 }
 
-func isUniqueError(err error) bool {
-	return !strings.Contains(err.Error(), "UNIQUE constraint failed: collections.iri")
-}
+var emptyCol = []byte{'[', ']'}
 
-func (r *repo) createCollection(tx *sql.Tx, col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
-	raw, err := vocab.MarshalJSON(col)
-	if err != nil {
-		r.errFn("unable to marshal collection %s: %s", col.GetLink(), err)
-		return col, errors.Annotatef(err, "unable to save Collection")
-	}
-	ins := "INSERT INTO collections (iri, raw, items) VALUES (?, ?, ?);"
-	if _, err = tx.Exec(ins, col.GetLink(), string(raw), string(emptyCol)); err != nil && !isUniqueError(err) {
-		r.errFn("query error when creating %s: %s\n%s", col.GetLink(), err, ins)
-		return col, errors.Annotatef(err, "unable to save Collection")
-	}
-
-	return col, nil
+// Create
+// Deprecated
+func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
+	it, err := r.Save(col)
+	col, _ = it.(vocab.CollectionInterface)
+	return col, err
 }
 
 func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
@@ -335,7 +306,7 @@ func (r *repo) addTo(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
 			r.logFn("unable to load collection object for %s: %s", col, err)
 			if errors.Is(err, sql.ErrNoRows) && (isHiddenCollectionIRI(col)) {
 				// NOTE(marius): this creates blocked/ignored collections if they don't exist
-				if c, err = r.createCollection(tx, createCollection(col.GetLink(), nil)); err != nil {
+				if c, err = r.save(tx, createCollection(col.GetLink(), nil)); err != nil {
 					r.errFn("query error: %s\n%s %#v", err, colSel, vocab.IRIs{col})
 				}
 			}
@@ -1101,27 +1072,21 @@ func delete(r repo, it vocab.Item) error {
 
 const upsertQ = "INSERT OR REPLACE INTO %s (%s) VALUES (%s);"
 
-func save(r *repo, it vocab.Item) (vocab.Item, error) {
+func (r *repo) save(tx *sql.Tx, it vocab.Item) (vocab.Item, error) {
 	if vocab.IsNil(it) {
 		return nil, nil
 	}
 
 	iri := it.GetLink()
 
-	raw, err := encodeItemFn(it)
+	var raw []byte
+	var err error
+	raw, err = encodeItemFn(it)
+
 	if err != nil {
 		r.errFn("query error: %s", err)
 		return it, errors.Annotatef(err, "query error")
 	}
-	tx, err := r.conn.Begin()
-	if err != nil {
-		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
-	}
-	defer func() {
-		if err := tx.Commit(); err != nil {
-			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
-		}
-	}()
 
 	columns := []string{"raw, iri"}
 	tokens := []string{"?, ?"}
@@ -1129,7 +1094,9 @@ func save(r *repo, it vocab.Item) (vocab.Item, error) {
 
 	table := string(filters.ObjectsType)
 	typ := it.GetType()
-	if append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...).Match(typ) {
+	if append(collectionTypes, orderedCollectionTypes...).Match(typ) {
+		table = "collections"
+	} else if append(vocab.ActivityTypes, vocab.IntransitiveActivityTypes...).Match(typ) {
 		table = string(filters.ActivitiesType)
 	} else if vocab.ActorTypes.Match(typ) {
 		table = string(filters.ActorsType)

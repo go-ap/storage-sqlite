@@ -258,7 +258,7 @@ func Test_repo_Save(t *testing.T) {
 		{
 			name:    "empty",
 			root:    rootActor,
-			wantErr: errors.Newf("Unable to save nil element"),
+			wantErr: errNilItem,
 		},
 		{
 			name:    "save object",
@@ -303,39 +303,39 @@ func Test_repo_Save(t *testing.T) {
 
 func Test_repo_Create(t *testing.T) {
 	tests := []struct {
-		name string
-		root vocab.Item
-		arg  vocab.CollectionInterface
-		want vocab.CollectionInterface
-		err  error
+		name    string
+		root    vocab.Item
+		arg     vocab.CollectionInterface
+		want    vocab.CollectionInterface
+		wantErr error
 	}{
 		{
-			name: "nil",
-			root: rootActor,
-			arg:  nil,
-			want: nil,
-			err:  nilItemErr,
+			name:    "nil",
+			root:    rootActor,
+			arg:     nil,
+			want:    nil,
+			wantErr: errNilItem,
 		},
 		{
-			name: "empty",
-			root: rootActor,
-			arg:  &vocab.ItemCollection{},
-			want: &vocab.ItemCollection{},
-			err:  nilItemIRIErr,
+			name:    "empty",
+			root:    rootActor,
+			arg:     &vocab.ItemCollection{},
+			want:    &vocab.ItemCollection{},
+			wantErr: nil,
 		},
 		{
-			name: "an item in an item collection",
-			root: rootActor,
-			arg:  &vocab.ItemCollection{vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType}},
-			want: &vocab.ItemCollection{vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType}},
-			err:  nilItemIRIErr,
+			name:    "an item in an item collection",
+			root:    rootActor,
+			arg:     &vocab.ItemCollection{vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType}},
+			want:    &vocab.ItemCollection{vocab.Object{ID: "https://example.com/1", Type: vocab.NoteType}},
+			wantErr: nil,
 		},
 		{
-			name: "an ordered collection",
-			root: rootActor,
-			arg:  &vocab.OrderedCollection{ID: "https://example.com/1", Type: vocab.OrderedCollectionType},
-			want: &vocab.OrderedCollection{ID: "https://example.com/1", Type: vocab.OrderedCollectionType},
-			err:  nil,
+			name:    "an ordered collection",
+			root:    rootActor,
+			arg:     &vocab.OrderedCollection{ID: "https://example.com/1", Type: vocab.OrderedCollectionType},
+			want:    &vocab.OrderedCollection{ID: "https://example.com/1", Type: vocab.OrderedCollectionType},
+			wantErr: nil,
 		},
 		{
 			name: "an ordered collection page",
@@ -352,7 +352,7 @@ func Test_repo_Create(t *testing.T) {
 				First: vocab.IRI("https://example.com/1?first"),
 				Next:  vocab.IRI("https://example.com/1?next"),
 			},
-			err: nil,
+			wantErr: nil,
 		},
 		{
 			name: "a collection",
@@ -375,7 +375,7 @@ func Test_repo_Create(t *testing.T) {
 					vocab.Object{ID: "https://example.com/1/3", Type: vocab.ImageType},
 				},
 			},
-			err: nil,
+			wantErr: nil,
 		},
 	}
 	for _, tt := range tests {
@@ -388,8 +388,12 @@ func Test_repo_Create(t *testing.T) {
 			defer r.Close()
 
 			got, err := r.Create(tt.arg)
-			checkErrorsEqual(t, tt.err, err)
-			be.True(t, vocab.ItemsEqual(tt.want, got))
+			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
+				t.Errorf("Create() error %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
+			}
+			if !cmp.Equal(tt.want, got, EquateItems) {
+				t.Errorf("Create() want %s", cmp.Diff(tt.want, got, EquateItems))
+			}
 		})
 	}
 }
@@ -735,11 +739,11 @@ func withOrderedCollectionHavingItems(t *testing.T, r *repo) *repo {
 		CC:        vocab.ItemCollection{vocab.PublicNS},
 		Published: time.Now().UTC(),
 	}
-	if _, err := r.Create(&col); err != nil {
+	if _, err := r.Save(&col); err != nil {
 		r.errFn("unable to save collection %s: %s", colIRI, err)
 	}
 	obIRI := vocab.IRI("https://example.com")
-	ob, err := save(r, vocab.Object{ID: obIRI})
+	ob, err := r.Save(vocab.Object{ID: obIRI})
 	if err != nil {
 		r.errFn("unable to save item %s: %s", obIRI, err)
 	}
@@ -757,11 +761,11 @@ func withCollectionHavingItems(t *testing.T, r *repo) *repo {
 		CC:        vocab.ItemCollection{vocab.PublicNS},
 		Published: time.Now().UTC(),
 	}
-	if _, err := r.Create(&col); err != nil {
+	if _, err := r.Save(&col); err != nil {
 		r.errFn("unable to save collection %s: %s", colIRI, err)
 	}
 	obIRI := vocab.IRI("https://example.com")
-	ob, err := save(r, vocab.Object{ID: obIRI})
+	ob, err := r.Save(vocab.Object{ID: obIRI})
 	if err != nil {
 		r.errFn("unable to save item %s: %s", obIRI, err)
 	}
@@ -774,7 +778,7 @@ func withCollectionHavingItems(t *testing.T, r *repo) *repo {
 func withItems(items ...vocab.Item) initFn {
 	return func(t *testing.T, r *repo) *repo {
 		for _, it := range items {
-			if _, err := save(r, it); err != nil {
+			if _, err := r.Save(it); err != nil {
 				r.errFn("unable to save item %s: %s", it.GetLink(), err)
 			}
 		}
@@ -1278,7 +1282,7 @@ func Test_repo_Save1(t *testing.T) {
 			name:     "empty item can't be saved",
 			fields:   fields{path: t.TempDir()},
 			setupFns: []initFn{withOpenRoot, withBootstrap},
-			wantErr:  errors.Newf("Unable to save nil element"),
+			wantErr:  errNilItem,
 		},
 		{
 			name:     "save item collection",
