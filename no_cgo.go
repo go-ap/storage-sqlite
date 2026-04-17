@@ -31,7 +31,7 @@ func (e sqlErr) Error() string {
 	return e.msg
 }
 
-var errCantOpen = &sqlErr{msg: "unable to open database file: out of memory (14)", code: 14}
+var errCantOpen = &sqlErr{msg: "unable to open database file (14)", code: 14}
 
 var errNoSuchTable = &sqlErr{msg: "SQL logic error: no such table: activities (1)", code: 1}
 
