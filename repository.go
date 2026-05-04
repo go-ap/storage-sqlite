@@ -133,29 +133,11 @@ func getCollectionTypeFromItem(it vocab.Item) vocab.CollectionPath {
 
 func getCollectionTable(colName vocab.CollectionPath) vocab.CollectionPath {
 	switch colName {
-	case vocab.Followers:
-		fallthrough
-	case vocab.Following:
-		fallthrough
-	case filters.ActorsType:
-		fallthrough
-	case vocab.Unknown:
+	case vocab.Followers, vocab.Following, filters.ActorsType, vocab.Unknown:
 		return "actors"
-	case vocab.Inbox:
-		fallthrough
-	case vocab.Outbox:
-		fallthrough
-	case vocab.Shares:
-		fallthrough
-	case vocab.Likes:
-		fallthrough
-	case filters.ActivitiesType:
+	case vocab.Inbox, vocab.Outbox, vocab.Shares, vocab.Likes, filters.ActivitiesType:
 		return "activities"
-	case filters.ObjectsType:
-		fallthrough
-	case vocab.Liked:
-		fallthrough
-	case vocab.Replies:
+	case filters.ObjectsType, vocab.Liked, vocab.Replies:
 		return "objects"
 	default:
 		return ""
@@ -211,14 +193,6 @@ func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
 }
 
 var emptyCol = []byte{'[', ']'}
-
-// Create
-// Deprecated
-func (r *repo) Create(col vocab.CollectionInterface) (vocab.CollectionInterface, error) {
-	it, err := r.Save(col)
-	col, _ = it.(vocab.CollectionInterface)
-	return col, err
-}
 
 func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
 	if r.ro == nil || r.conn == nil {
@@ -594,11 +568,6 @@ func isStorageCollectionIRI(iri vocab.IRI) bool {
 func isActorsCollectionIRI(iri vocab.IRI) bool {
 	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
 	return lst == filters.ActorsType
-}
-
-func isObjectsCollectionIRI(iri vocab.IRI) bool {
-	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
-	return lst == filters.ObjectsType
 }
 
 func isCollectionIRI(iri vocab.IRI) bool {

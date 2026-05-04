@@ -387,7 +387,7 @@ func Test_repo_Create(t *testing.T) {
 			_ = r.Open()
 			defer r.Close()
 
-			got, err := r.Create(tt.arg)
+			got, err := r.Save(tt.arg)
 			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
 				t.Errorf("Create() error %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 			}
@@ -443,7 +443,7 @@ func Test_repo_AddTo(t *testing.T) {
 			_ = r.Open()
 			defer r.Close()
 
-			col, err := r.Create(mockCol)
+			col, err := r.Save(mockCol)
 			be.NilErr(t, err)
 			be.Equal(t, tt.args.col, col.GetLink())
 
@@ -709,7 +709,7 @@ func defaultCol(iri vocab.IRI) vocab.CollectionInterface {
 
 func withOrderedCollection(iri vocab.IRI) initFn {
 	return func(t *testing.T, r *repo) *repo {
-		if _, err := r.Create(defaultCol(iri)); err != nil {
+		if _, err := r.Save(defaultCol(iri)); err != nil {
 			r.errFn("unable to save collection %s: %s", iri, err.Error())
 		}
 		return r
@@ -724,7 +724,7 @@ func withCollection(iri vocab.IRI) initFn {
 		Published: time.Now().Round(time.Second).UTC(),
 	}
 	return func(t *testing.T, r *repo) *repo {
-		if _, err := r.Create(col); err != nil {
+		if _, err := r.Save(col); err != nil {
 			r.errFn("unable to save collection %s: %s", iri, err)
 		}
 		return r
@@ -1425,6 +1425,37 @@ func Test_stripFiltersFromIRI(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := stripFiltersFromIRI(tt.iri); got != tt.want {
 				t.Errorf("stripFiltersFromIRI() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getCollectionTable(t *testing.T) {
+	tests := []struct {
+		name    string
+		colName vocab.CollectionPath
+		want    vocab.CollectionPath
+	}{
+		{
+			name:    "objects",
+			colName: "objects",
+			want:    "objects",
+		},
+		{
+			name:    "replies",
+			colName: "replies",
+			want:    "objects",
+		},
+		{
+			name:    "liked",
+			colName: "liked",
+			want:    "objects",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getCollectionTable(tt.colName); got != tt.want {
+				t.Errorf("getCollectionTable() = %v, want %v", got, tt.want)
 			}
 		})
 	}
