@@ -215,40 +215,10 @@ const updateClient = "UPDATE clients SET (secret, redirect_uri, extra) = (?, ?, 
 
 var nilClientErr = errors.Newf("nil client")
 
-// UpdateClient
-func (r *repo) UpdateClient(c osin.Client) error {
-	if r == nil || r.conn == nil {
-		return errNotOpen
-	}
-	if c == nil {
-		return nilClientErr
-	}
-
-	data, err := assertToBytes(c.GetUserData())
-	if err != nil {
-		r.errFn("Client id %s: %+s", c.GetId(), err)
-		return err
-	}
-
-	params := []interface{}{
-		c.GetSecret(),
-		c.GetRedirectUri(),
-		data,
-	}
-	params = append(params, c.GetId())
-
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeout)
-	if _, err := r.conn.ExecContext(ctx, updateClient, params...); err != nil {
-		r.errFn("Failed to update client id %s: %+s", c.GetId(), err)
-		return errors.Annotatef(err, "Unable to update client")
-	}
-	return nil
-}
-
 const createClient = "INSERT OR REPLACE INTO clients (code, secret, redirect_uri, extra) VALUES (?, ?, ?, ?)"
 
-// CreateClient
-func (r *repo) CreateClient(c osin.Client) error {
+// SaveClient
+func (r *repo) SaveClient(c osin.Client) error {
 	if r == nil || r.conn == nil {
 		return errNotOpen
 	}

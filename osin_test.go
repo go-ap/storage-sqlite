@@ -45,7 +45,7 @@ func Test_repo_CreateClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := mockRepo(t, fields{path: t.TempDir()}, tt.setupFns...)
 			t.Cleanup(s.Close)
-			err := s.CreateClient(tt.arg)
+			err := s.SaveClient(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 
 			if tt.arg == nil {
@@ -247,7 +247,7 @@ func Test_repo_RemoveAccess1(t *testing.T) {
 	}
 }
 
-func Test_repo_UpdateClient(t *testing.T) {
+func Test_repo_SaveClient_Update(t *testing.T) {
 	tests := []struct {
 		name     string
 		setupFns []initFn
@@ -282,7 +282,7 @@ func Test_repo_UpdateClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := mockRepo(t, fields{path: t.TempDir()}, tt.setupFns...)
 			t.Cleanup(s.Close)
-			err := s.UpdateClient(tt.arg)
+			err := s.SaveClient(tt.arg)
 			checkErrorsEqual(t, tt.err, err)
 		})
 	}
@@ -728,11 +728,11 @@ func Test_repo_SaveXXX_with_brokenEncode(t *testing.T) {
 		encodeFn = oldEncode
 	})
 
-	t.Run("CreateClient", func(t *testing.T) {
+	t.Run("SaveClient", func(t *testing.T) {
 		t.Skip("we don't need to unmarshal osin data")
-		err := rr.CreateClient(defaultClient)
+		err := rr.SaveClient(defaultClient)
 		if !cmp.Equal(err, wantErr, EquateWeakErrors) {
-			t.Errorf("CreateClient() error = %v, wantErr %v", err, wantErr)
+			t.Errorf("SaveClient() error = %v, wantErr %v", err, wantErr)
 		}
 	})
 
