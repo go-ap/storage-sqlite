@@ -1,6 +1,7 @@
 image: alpine/edge
 packages:
   - go
+  - golangci-lint
 sources:
   - https://github.com/go-ap/storage-sqlite
 secrets:
@@ -8,6 +9,9 @@ secrets:
 environment:
   GO111MODULE: 'on'
 tasks:
+  - fmt: |
+      cd storage-sqlite
+      test -z $(gofmt -l .)
   - tests: |
       cd storage-sqlite
       make test
@@ -17,3 +21,6 @@ tasks:
       git switch -C master origin/master
       make coverage
       go tool goveralls -flagname unit-tests -service=${CI_NAME} -coverprofile storage-sqlite.coverprofile -repotokenfile ~/.coveralls.tok
+  - lint: |
+      cd storage-sqlite
+      golangci-lint run || true
