@@ -4,18 +4,18 @@ go 1.25.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260607141243-4f8aa4005e65
-	github.com/go-ap/cache v0.0.0-20260607141501-80f9206d91a9
+	github.com/go-ap/activitypub v0.0.0-20260623140137-649d56290d36
+	github.com/go-ap/cache v0.0.0-20260623141627-0fc93a4e1057
 	github.com/go-ap/errors v0.0.0-20260607141156-afed270859b6
-	github.com/go-ap/filters v0.0.0-20260607141701-131281f883a2
+	github.com/go-ap/filters v0.0.0-20260623141656-42ebba1b1b62
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
 	github.com/go-ap/storage-conformance-suite v0.0.0-20260607142507-0dc986eef59e
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
-	github.com/mattn/go-sqlite3 v1.14.45
+	github.com/mattn/go-sqlite3 v1.14.47
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
-	golang.org/x/crypto v0.52.0
-	modernc.org/sqlite v1.52.0
+	golang.org/x/crypto v0.53.0
+	modernc.org/sqlite v1.53.0
 )
 
 require (
@@ -48,13 +48,13 @@ require (
 	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
-	golang.org/x/mod v0.35.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/term v0.43.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
-	golang.org/x/tools v0.44.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/term v0.44.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	modernc.org/libc v1.72.5 // indirect
+	modernc.org/libc v1.73.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	quamina.net/go/quamina/v2 v2.0.2 // indirect
