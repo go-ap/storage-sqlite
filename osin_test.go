@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"database/sql"
 	"reflect"
 	"testing"
 	"time"
@@ -88,18 +89,18 @@ func Test_repo_GetClient(t *testing.T) {
 		setupFns []initFn
 		arg      string
 		want     osin.Client
-		err      error
+		wantErr  error
 	}{
 		{
-			name: "not open",
-			arg:  "missing",
-			err:  errNotOpen,
+			name:    "not open",
+			arg:     "missing",
+			wantErr: errNotOpen,
 		},
 		{
 			name:     "missing",
 			arg:      "missing",
 			setupFns: []initFn{withOpenRoot, withBootstrap},
-			err:      errClientNotFound(nil),
+			wantErr:  errClientNotFound(sql.ErrNoRows),
 		},
 		{
 			name: "found",
@@ -127,8 +128,8 @@ func Test_repo_GetClient(t *testing.T) {
 			s := mockRepo(t, fields{path: t.TempDir()}, tt.setupFns...)
 			t.Cleanup(s.Close)
 			got, err := s.GetClient(tt.arg)
-			if !cmp.Equal(tt.err, err, EquateWeakErrors) {
-				t.Errorf("invalid error type received %s", cmp.Diff(tt.err, got, EquateWeakErrors))
+			if !cmp.Equal(tt.wantErr, err, EquateWeakErrors) {
+				t.Errorf("invalid error type received %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 			}
 			if !cmp.Equal(tt.want, got) {
 				t.Errorf("Different client received, from expected: %s", cmp.Diff(tt.want, got))

@@ -810,7 +810,7 @@ func Test_repo_RemoveFrom(t *testing.T) {
 			path:     t.TempDir(),
 			setupFns: []initFn{withOpenRoot, withBootstrap},
 			args:     args{},
-			wantErr:  errors.NotFoundf("Unable to load root bucket"),
+			wantErr:  errors.NotFoundf("unable to operate on empty collection IRI"),
 		},
 		{
 			name:     "collection doesn't exist",
@@ -820,7 +820,7 @@ func Test_repo_RemoveFrom(t *testing.T) {
 				colIRI: "https://example.com/followers",
 				it:     vocab.IRI("https://example.com"),
 			},
-			wantErr: errors.NotFoundf("Unable to load root bucket"),
+			wantErr: errors.NotFoundf("collection not found https://example.com/followers"),
 		},
 		{
 			name:     "item doesn't exist in ordered collection",
@@ -935,7 +935,7 @@ func Test_repo_AddTo1(t *testing.T) {
 			path:     t.TempDir(),
 			setupFns: []initFn{withOpenRoot, withBootstrap},
 			args:     args{},
-			wantErr:  errors.NotFoundf("not found"),
+			wantErr:  errors.NotFoundf("unable to operate on empty collection IRI"),
 		},
 		{
 			name:     "collection doesn't exist",
@@ -945,7 +945,7 @@ func Test_repo_AddTo1(t *testing.T) {
 				colIRI: "https://example.com/followers",
 				it:     vocab.IRI("https://example.com"),
 			},
-			wantErr: errors.NotFoundf("not found"),
+			wantErr: errors.NotFoundf("collection not found https://example.com/followers"),
 		},
 		{
 			name:     "item doesn't exist in collection",
@@ -955,7 +955,7 @@ func Test_repo_AddTo1(t *testing.T) {
 				colIRI: "https://example.com/followers",
 				it:     vocab.IRI("https://example.com"),
 			},
-			wantErr: errors.NotFoundf("invalid item to add to collection"),
+			wantErr: errors.NewNotFound(errors.NotFoundf("not found"), "invalid item to add to collection"),
 		},
 		{
 			name:     "item doesn't exist in ordered collection",
@@ -965,7 +965,7 @@ func Test_repo_AddTo1(t *testing.T) {
 				colIRI: "https://example.com/followers",
 				it:     vocab.IRI("https://example.com"),
 			},
-			wantErr: errors.NotFoundf("invalid item to add to collection"),
+			wantErr: errors.NewNotFound(errors.NotFoundf("not found"), "invalid item to add to collection"),
 		},
 		{
 			name:     "item exists in ordered collection",
@@ -1015,7 +1015,7 @@ func Test_repo_AddTo1(t *testing.T) {
 
 			err := r.AddTo(tt.args.colIRI, tt.args.it)
 			if !cmp.Equal(err, tt.wantErr, EquateWeakErrors) {
-				t.Errorf("AddTo() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("AddTo() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 			}
 			if tt.wantErr != nil {
 				return
@@ -1068,7 +1068,7 @@ func Test_repo_Load_UnhappyPath(t *testing.T) {
 		{
 			name:     "empty",
 			setupFns: []initFn{withOpenRoot, withBootstrap},
-			wantErr:  errors.NotFoundf("file not found"),
+			wantErr:  errors.NotFoundf("not found"),
 		},
 		{
 			name:     "not bootstrapped",
@@ -1079,13 +1079,13 @@ func Test_repo_Load_UnhappyPath(t *testing.T) {
 		{
 			name:     "empty iri gives us not found",
 			setupFns: []initFn{withOpenRoot, withBootstrap},
-			wantErr:  errors.NotFoundf("file not found"),
+			wantErr:  errors.NotFoundf("not found"),
 		},
 		{
 			name:     "invalid iri gives 404",
 			args:     args{iri: "https://example.com/dsad"},
 			setupFns: []initFn{withOpenRoot, withBootstrap},
-			wantErr:  errors.NotFoundf("example.com not found"),
+			wantErr:  errors.NotFoundf("not found"),
 		},
 	}
 	for _, tt := range tests {
@@ -1123,13 +1123,13 @@ func Test_repo_Load(t *testing.T) {
 		{
 			name:    "empty",
 			args:    args{iri: ""},
-			wantErr: errors.NotFoundf("file not found"),
+			wantErr: errors.NotFoundf("not found"),
 		},
 		{
 			name:    "empty iri gives us not found",
 			args:    args{iri: ""},
 			want:    nil,
-			wantErr: errors.NotFoundf("file not found"),
+			wantErr: errors.NotFoundf("not found"),
 		},
 		{
 			name: "root iri gives us the root",
@@ -1140,7 +1140,7 @@ func Test_repo_Load(t *testing.T) {
 			name:    "invalid iri gives 404",
 			args:    args{iri: "https://example.com/dsad"},
 			want:    nil,
-			wantErr: errors.NotFoundf("dsad not found"),
+			wantErr: errors.NotFoundf("not found"),
 		},
 		{
 			name: "first Person",

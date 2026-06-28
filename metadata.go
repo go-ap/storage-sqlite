@@ -41,7 +41,7 @@ func (r *repo) PasswordSet(iri vocab.IRI, pw []byte) error {
 	var err error
 	m.Pw, err = bcrypt.GenerateFromPassword(pw, -1)
 	if err != nil {
-		return errors.Annotatef(err, "Could not generate password hash")
+		return errors.Annotatef(err, "could not generate password hash")
 	}
 	return r.SaveMetadata(iri, m)
 }
@@ -53,10 +53,10 @@ func (r *repo) PasswordCheck(iri vocab.IRI, pw []byte) error {
 	}
 	m := new(Metadata)
 	if err := r.LoadMetadata(iri, m); err != nil {
-		return errors.Annotatef(err, "Could not find load metadata for %s", iri)
+		return err
 	}
 	if err := bcrypt.CompareHashAndPassword(m.Pw, pw); err != nil {
-		return errors.NewUnauthorized(err, "Invalid pw")
+		return errors.NewUnauthorized(err, "invalid pw")
 	}
 	return nil
 }
@@ -69,7 +69,7 @@ func (r *repo) LoadMetadata(iri vocab.IRI, m any) error {
 	raw, err := loadMetadataFromTable(r.ro, iri)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return errors.NewNotFound(err, "not found")
+			return errors.NewNotFound(err, "could not find metadata in path")
 		}
 		return err
 	}
@@ -78,7 +78,7 @@ func (r *repo) LoadMetadata(iri vocab.IRI, m any) error {
 	}
 
 	if err = decodeFn(raw, m); err != nil {
-		return errors.Annotatef(err, "Could not unmarshal metadata")
+		return errors.Annotatef(err, "could not unmarshal metadata")
 	}
 	return nil
 }

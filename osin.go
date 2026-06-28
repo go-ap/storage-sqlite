@@ -142,9 +142,9 @@ const getClientSQL = "SELECT code, secret, redirect_uri, extra FROM clients WHER
 
 func errClientNotFound(err error) error {
 	if err == nil {
-		return errors.NotFoundf("Client could not be found")
+		return errors.NotFoundf("client could not be found")
 	}
-	return errors.NewNotFound(err, "Client could not be found")
+	return errors.NewNotFound(err, "client could not be found")
 }
 
 type cl struct {

@@ -194,14 +194,17 @@ func (r *repo) Save(it vocab.Item) (vocab.Item, error) {
 
 var emptyCol = []byte{'[', ']'}
 
-func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
+func (r *repo) removeFrom(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
 	if r.ro == nil || r.conn == nil {
 		return errNotOpen
 	}
+	if col.GetLink() == "" {
+		return errors.NotFoundf("unable to operate on empty collection IRI")
+	}
 	colSel := "SELECT iri, raw, items from collections WHERE iri = ?;"
-	rows, err := r.ro.Query(colSel, col.GetLink())
+	rows, err := tx.Query(colSel, col.GetLink())
 	if err != nil {
-		return errors.NotFoundf("Unable to load %s", col.GetLink())
+		return errors.NotFoundf("unable to load %s", col.GetLink())
 	}
 	defer rows.Close()
 
@@ -232,20 +235,20 @@ func (r *repo) removeFrom(col vocab.IRI, items ...vocab.Item) error {
 	}
 
 	if vocab.IsNil(c) {
-		return errors.NotFoundf("not found Collection %s", col.GetLink())
+		return errors.NotFoundf("collection not found %s", col.GetLink())
 	}
 
 	raw, err := vocab.MarshalJSON(c)
 	if err != nil {
-		return errors.Annotatef(err, "unable to marshal Collection")
+		return errors.Annotatef(err, "unable to marshal collection")
 	}
 	rawItems, err := vocab.MarshalJSON(iris.IRIs())
 	if err != nil {
-		return errors.Annotatef(err, "unable to marshal Collection rawItems")
+		return errors.Annotatef(err, "unable to marshal collection rawItems")
 	}
 
 	query := "UPDATE collections SET raw = ?, items = ? WHERE iri = ?;"
-	_, err = r.conn.Exec(query, string(raw), string(rawItems), c.GetLink())
+	_, err = tx.Exec(query, string(raw), string(rawItems), c.GetLink())
 	if err != nil {
 		r.errFn("query error: %s\n%s\n%s", err, stringClean(query), c.GetLink())
 		return errors.Annotatef(err, "query error")
@@ -259,8 +262,17 @@ func (r *repo) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
 	if r == nil || r.conn == nil {
 		return errNotOpen
 	}
+	tx, err := r.conn.Begin()
+	if err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
+	}
+	defer func() {
+		if err := tx.Commit(); err != nil {
+			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
+		}
+	}()
 
-	return r.removeFrom(col, items...)
+	return r.removeFrom(tx, col, items...)
 }
 
 func (r *repo) addTo(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
@@ -294,7 +306,7 @@ func (r *repo) addTo(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
 			}
 		}
 		if c == nil {
-			return errors.NotFoundf("not found Collection %s", col.GetLink())
+			return errors.NotFoundf("collection not found %s", col.GetLink())
 		}
 
 		// NOTE(marius): load previous items' IRIs
@@ -354,6 +366,9 @@ func (r *repo) addTo(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
 func (r *repo) AddTo(col vocab.IRI, items ...vocab.Item) error {
 	if r == nil || r.conn == nil {
 		return errNotOpen
+	}
+	if col.GetLink() == "" {
+		return errors.NotFoundf("unable to operate on empty collection IRI")
 	}
 
 	tx, err := r.conn.Begin()
