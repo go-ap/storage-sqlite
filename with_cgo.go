@@ -5,6 +5,7 @@ package sqlite
 import (
 	"database/sql"
 	"net/url"
+	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -34,11 +35,11 @@ var errNoSuchTable = &sqlError{
 }
 
 var defaultQueryParam = url.Values{
-	//"_txlock":       []string{"immediate"},
-	//"_journal": []string{"WAL"},
-	//"_busy_timeout": []string{strconv.Itoa(int(2 * defaultTimeout.Milliseconds()))},
-	//"_synchronous": []string{"NORMAL"},
-	//"cache_size":   []string{"-64000"},
+	"_txlock":       []string{"immediate"},
+	"_journal":      []string{"WAL"},
+	"_busy_timeout": []string{strconv.Itoa(int(2 * defaultTimeout.Milliseconds()))},
+	"_synchronous":  []string{"NORMAL"},
+	"cache_size":    []string{"-64000"},
 }
 
 // sqlOpen will use the github.com/mattn/go-sqlite3 package when compiled with CGO

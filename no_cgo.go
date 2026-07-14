@@ -5,20 +5,21 @@ package sqlite
 import (
 	"database/sql"
 	"net/url"
+	"strconv"
 
 	_ "modernc.org/sqlite"
 )
 
 var defaultQueryParam = url.Values{
-	//"_txlock": []string{"immediate"},
-	//"_pragma": []string{
-	//	"synchronous=NORMAL",
-	//	"cache_size=-64000",
-	//	"journal_mode=WAL",
-	//	"busy_timeout=" + strconv.Itoa(int(2*defaultTimeout.Milliseconds())),
-	//	"wal_autocheckpoint=0",
-	//	"strict=1",
-	//},
+	"_txlock": []string{"immediate"},
+	"_pragma": []string{
+		"synchronous=NORMAL",
+		"cache_size=-64000",
+		"journal_mode=WAL",
+		"busy_timeout=" + strconv.Itoa(int(2*defaultTimeout.Milliseconds())),
+		"wal_autocheckpoint=0",
+		"strict=1",
+	},
 }
 
 type sqlErr struct {
