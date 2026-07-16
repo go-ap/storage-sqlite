@@ -7,15 +7,15 @@ require (
 	github.com/go-ap/activitypub v0.0.0-20260701132640-13f25467c431
 	github.com/go-ap/cache v0.0.0-20260701132808-71a22e0f7796
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260701132827-4ad866f2a41d
+	github.com/go-ap/filters v0.0.0-20260716084456-328354b4a4bb
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20260701133105-6fdc36975811
+	github.com/go-ap/storage-conformance-suite v0.0.0-20260716090156-f968015e8de8
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.54.0
-	modernc.org/sqlite v1.53.0
+	modernc.org/sqlite v1.54.0
 )
 
 require (
@@ -33,7 +33,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/jdkato/prose v1.2.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mattn/goveralls v0.0.12 // indirect
 	github.com/mfridman/tparse v0.18.0 // indirect
