@@ -4,10 +4,10 @@ go 1.25.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260720130625-e2c76676dde7
-	github.com/go-ap/cache v0.0.0-20260720130756-5966f822532a
+	github.com/go-ap/activitypub v0.0.0-20260726121542-1f5299646d89
+	github.com/go-ap/cache v0.0.0-20260726121806-b16fde52ceaa
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260720130825-55f4e622346f
+	github.com/go-ap/filters v0.0.0-20260726122206-0a4b91e3b913
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
 	github.com/go-ap/storage-conformance-suite v0.0.0-20260720133242-626f09d14d19
 	github.com/google/go-cmp v0.7.0
@@ -33,7 +33,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/jdkato/prose v1.2.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/mattn/go-isatty v0.0.23 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mattn/goveralls v0.0.12 // indirect
 	github.com/mfridman/tparse v0.18.0 // indirect
