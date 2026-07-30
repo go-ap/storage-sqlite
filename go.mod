@@ -7,9 +7,9 @@ require (
 	github.com/go-ap/activitypub v0.0.0-20260730100035-a64b9d392262
 	github.com/go-ap/cache v0.0.0-20260730100116-cf6babfea406
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260730101216-bf79ffcc0f82
+	github.com/go-ap/filters v0.0.0-20260730164443-1e2ebeb8cf42
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20260730103615-21d80393bb11
+	github.com/go-ap/storage-conformance-suite v0.0.0-20260730170412-e05d153d2143
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.49
