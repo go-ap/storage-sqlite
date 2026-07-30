@@ -4,18 +4,18 @@ go 1.25.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260728101245-29ad8d823d52
-	github.com/go-ap/cache v0.0.0-20260728141544-0135f166141c
+	github.com/go-ap/activitypub v0.0.0-20260730100035-a64b9d392262
+	github.com/go-ap/cache v0.0.0-20260730100116-cf6babfea406
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260728141602-d17cbb6bba25
+	github.com/go-ap/filters v0.0.0-20260730101216-bf79ffcc0f82
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20260728142034-448e8dbf5d39
+	github.com/go-ap/storage-conformance-suite v0.0.0-20260730103615-21d80393bb11
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
-	github.com/mattn/go-sqlite3 v1.14.48
+	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.54.0
-	modernc.org/sqlite v1.54.0
+	modernc.org/sqlite v1.55.0
 )
 
 require (
