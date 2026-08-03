@@ -7,7 +7,7 @@ require (
 	github.com/go-ap/activitypub v0.0.0-20260803135430-cb9978486dff
 	github.com/go-ap/cache v0.0.0-20260803141141-2249e83e921d
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260803142253-7b61bca1c1d0
+	github.com/go-ap/filters v0.0.0-20260803180515-dca600d1a418
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
 	github.com/go-ap/storage-conformance-suite v0.0.0-20260803143156-1d6f11dd8e84
 	github.com/google/go-cmp v0.7.0
