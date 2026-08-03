@@ -389,7 +389,7 @@ func (r *repo) Delete(it vocab.Item) error {
 		return nil
 	}
 
-	if it.IsCollection() {
+	if vocab.IsCollection(it) {
 		err := vocab.OnCollectionIntf(it, func(c vocab.CollectionInterface) error {
 			var err error
 			for _, it := range c.Collection() {
