@@ -15,7 +15,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.54.0
-	modernc.org/sqlite v1.55.0
+	modernc.org/sqlite v1.56.0
 )
 
 require (
