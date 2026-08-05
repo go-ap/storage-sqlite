@@ -529,10 +529,9 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 		return nil, errors.NotFoundf("not found")
 	}
 
-	ret = loadActorFirstLevelIRIProperties(r, ret, f...)
-	ret = loadObjectFirstLevelIRIProperties(r, ret, f...)
-	ret = runActivityFilters(r, ret, f...)
-	ret = runObjectFilters(ret, f...)
+	for i, it := range ret {
+		ret[i] = dereferencePropertiesByType(r, it, f...)
+	}
 	return &ret, err
 }
 
@@ -585,120 +584,97 @@ func isCollectionIRI(iri vocab.IRI) bool {
 	return collectionPaths.Contains(lst)
 }
 
-func loadFromOneTable(r *repo, iri vocab.IRI, table vocab.CollectionPath, f ...filters.Check) (vocab.CollectionInterface, error) {
-	conn := r.ro
-	if isSingleItem(f...) && r.cache != nil {
-		if cachedIt := r.cache.Load(iri); cachedIt != nil {
-			return &vocab.ItemCollection{cachedIt}, nil
+func dereferencePropertiesByType(r *repo, it vocab.Item, fil ...filters.Check) vocab.Item {
+	if vocab.IsNil(it) || vocab.IsIRI(it) {
+		return it
+	}
+
+	intransitiveChecks := filters.IntransitiveActivityChecks(fil...)
+	activityChecks := filters.ActivityChecks(fil...)
+	actorChecks := filters.ActorChecks(fil...)
+	objectChecks := filters.ObjectChecks(fil...)
+
+	authorizedChecks := filters.AuthorizedChecks(fil...)
+
+	typ := it.GetType()
+	// NOTE(marius): this can probably expedite filtering if we early exit when we fail to load the
+	// properties that need to be loaded for sub-filters.
+	if vocab.IntransitiveActivityTypes.Match(typ) /*&& len(intransitiveChecks) > 0*/ {
+		checks := append(intransitiveChecks, authorizedChecks...)
+		_ = vocab.OnIntransitiveActivity(it, loadFilteredPropsForIntransitiveActivity(r, checks...))
+	}
+	if vocab.ActivityTypes.Match(typ) /*&& len(activityChecks) > 0*/ {
+		checks := append(activityChecks, authorizedChecks...)
+		_ = vocab.OnActivity(it, loadFilteredPropsForActivity(r, checks...))
+	}
+	if vocab.ActorTypes.Match(typ) /*&& len(actorChecks) > 0*/ {
+		checks := append(actorChecks, authorizedChecks...)
+		_ = vocab.OnActor(it, loadFilteredPropsForActor(r, checks...))
+	}
+	if vocab.ObjectTypes.Match(typ) /*&& len(objectChecks) > 0*/ {
+		checks := append(objectChecks, authorizedChecks...)
+		_ = vocab.OnObject(it, loadFilteredPropsForObject(r, checks...))
+	}
+	return it
+}
+
+func loadFilteredPropsForActor(r *repo, fil ...filters.Check) func(a *vocab.Actor) error {
+	return func(a *vocab.Actor) error {
+		return vocab.OnObject(a, loadFilteredPropsForObject(r, fil...))
+	}
+}
+
+func loadFilteredPropsForActivity(r *repo, fil ...filters.Check) func(a *vocab.Activity) error {
+	objectChecks := filters.ObjectChecks(fil...)
+	return func(a *vocab.Activity) error {
+		var err error
+		if !vocab.IsNil(a.Object) {
+			if a.ID.Equals(a.Object.GetLink(), false) {
+				return errors.BadGatewayf("invalid activity with id %s, referencing itself as an object: %s", a.ID, a.Object.GetLink())
+			}
+			if a.Object, err = dereferenceItemAndFilter(r, a.Object, objectChecks...); err != nil {
+				return err
+			}
 		}
+		intransitiveChecks := filters.IntransitiveActivityChecks(fil...)
+		return vocab.OnIntransitiveActivity(a, loadFilteredPropsForIntransitiveActivity(r, intransitiveChecks...))
 	}
-	if table == "" {
-		return nil, errors.Newf("invalid table")
+}
+
+func loadFilteredPropsForIntransitiveActivity(r *repo, fil ...filters.Check) func(a *vocab.IntransitiveActivity) error {
+	targetChecks := filters.TargetChecks(fil...)
+	return func(a *vocab.IntransitiveActivity) error {
+		var err error
+		if !vocab.IsNil(a.Target) {
+			if a.ID.Equals(a.Target.GetLink(), false) {
+				return errors.BadGatewayf("invalid activity with id %s, referencing itself as a target: %s", a.ID, a.Target.GetLink())
+			}
+			if a.Target, err = dereferenceItemAndFilter(r, a.Target, targetChecks...); err != nil {
+				return err
+			}
+		}
+		return vocab.OnObject(a, loadFilteredPropsForObject(r))
+	}
+}
+
+func dereferenceItemAndFilter(r *repo, ob vocab.Item, fil ...filters.Check) (vocab.Item, error) {
+	if vocab.IsNil(ob) {
+		return ob, nil
 	}
 
-	selS := sqlf.From(string(table))
-	selS.Select("iri").Select("raw")
-	ret := make(vocab.ItemCollection, 0)
-	_ = filters.SQLWhere(selS, f...)
+	if !vocab.IsIRI(ob) {
+		return ob, nil
+	}
 
-	filters.SQLLimit(selS, f...)
-	selS.OrderBy("updated DESC")
-
-	sel := selS.String()
-	args := selS.Args()
-	st, err := conn.Prepare(sel)
+	o, err := loadFromThreeTables(r, ob.GetLink(), fil...)
 	if err != nil {
-		return nil, errors.Annotatef(err, "unable to prepare statement")
-	}
-	defer st.Close()
-
-	rows, err := st.Query(args...)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, errors.Annotatef(err, "unable to run select")
-	}
-	defer rows.Close()
-
-	// Iterate through the result set
-	for rows.Next() {
-		var iri string
-		var raw []byte
-		err = rows.Scan(&iri, &raw)
-		if err != nil {
-			return &ret, errors.Annotatef(err, "scan values error")
-		}
-
-		it, err := decodeItemFn(raw)
-		if err != nil {
-			return &ret, errors.Annotatef(err, "unable to unmarshal raw item")
-		}
-		if it = filters.Checks(f).Filter(it); vocab.IsNil(it) {
-			continue
-		}
-		if vocab.IsObject(it) && r.cache != nil {
-			r.cache.Store(it.GetLink(), it)
-		}
-		ret = append(ret, it)
+		return ob, nil
 	}
 
-	if table == "actors" {
-		ret = loadActorFirstLevelIRIProperties(r, ret, f...)
-	}
-	if table == "objects" {
-		ret = loadObjectFirstLevelIRIProperties(r, ret, f...)
-	}
-	if table == "activities" {
-		ret = loadActivityFirstLevelIRIProperties(r, ret, f...)
-		ret = runActivityFilters(r, ret, f...)
-	}
-	ret = runObjectFilters(ret, f...)
-	return &ret, nil
+	return o, nil
 }
 
-func runObjectFilters(ret vocab.ItemCollection, f ...filters.Check) vocab.ItemCollection {
-	maybeCol := filters.Checks(f).Run(vocab.Item(ret))
-	ret, _ = maybeCol.(vocab.ItemCollection)
-	return ret
-}
-
-func keepObject(f ...filters.Check) func(act *vocab.Activity, ob vocab.Item) bool {
-	return func(act *vocab.Activity, ob vocab.Item) bool {
-		keep := false
-		if act.Object.GetLink().Equals(ob.GetLink(), false) {
-			act.Object = ob
-			keep = !vocab.IsNil(filters.Checks(f).Run(act.Object))
-		}
-		return keep
-	}
-}
-
-func keepActor(f ...filters.Check) func(act *vocab.Activity, ob vocab.Item) bool {
-	return func(act *vocab.Activity, ob vocab.Item) bool {
-		var keep bool
-		if act.Actor.GetLink().Equals(ob.GetLink(), false) {
-			act.Actor = ob
-			keep = !vocab.IsNil(filters.Checks(f).Run(act.Actor))
-		}
-		return keep
-	}
-}
-
-func keepTarget(f ...filters.Check) func(act *vocab.Activity, ob vocab.Item) bool {
-	return func(act *vocab.Activity, ob vocab.Item) bool {
-		var keep bool
-		target := act.Target
-		if !vocab.IsNil(target) && target.GetLink().Equals(ob.GetLink(), false) {
-			act.Target = ob
-			keep = !vocab.IsNil(filters.Checks(f).Run(act.Target))
-		}
-		return keep
-	}
-}
-
-func loadTagsForObject(r *repo, ff ...filters.Check) func(o *vocab.Object) error {
-	tf := filters.TagChecks(ff...)
+func loadFilteredPropsForObject(r *repo, fil ...filters.Check) func(o *vocab.Object) error {
 	return func(o *vocab.Object) error {
 		if len(o.Tag) == 0 {
 			return nil
@@ -708,164 +684,20 @@ func loadTagsForObject(r *repo, ff ...filters.Check) func(o *vocab.Object) error
 				if vocab.IsNil(t) || !vocab.IsIRI(t) {
 					return nil
 				}
-				if len(tf) == 0 {
-					tf = append(tf, filters.SameID(t.GetLink()))
+				items, err := loadFromThreeTables(r, t.GetLink())
+				if err != nil {
+					continue
 				}
-				if ob, err := loadFromOneTable(r, t.GetLink(), "objects", tf...); err == nil {
-					(*col)[i] = ob.Collection().First()
-				}
+				_ = vocab.OnItem(items, func(it vocab.Item) error {
+					if it = filters.TagChecks(fil...).Run(it); !vocab.IsNil(it) {
+						(*col)[i] = items
+					}
+					return nil
+				})
 			}
 			return nil
 		})
 	}
-}
-
-func loadTargetForActivity(r *repo, a *vocab.Activity) error {
-	if vocab.IsNil(a.Target) {
-		return nil
-	}
-
-	if ob, err := loadFromOneTable(r, a.Target.GetLink(), "objects"); err == nil {
-		if c := ob.Collection(); c.Count() > 1 {
-			a.Target = ob.Collection()
-		} else if c.Count() == 1 {
-			a.Target = ob.Collection().First()
-		}
-	}
-	return nil
-}
-
-func loadObjectForActivity(r *repo, a *vocab.Activity) error {
-	if vocab.IsNil(a.Object) {
-		return nil
-	}
-
-	if ob, err := loadFromOneTable(r, a.Object.GetLink(), "objects"); err == nil {
-		if c := ob.Collection(); c.Count() > 1 {
-			a.Object = ob.Collection()
-		} else if c.Count() == 1 {
-			a.Object = ob.Collection().First()
-		}
-	}
-	return nil
-}
-
-func loadActorForActivity(r *repo, a *vocab.Activity) error {
-	if vocab.IsNil(a.Actor) {
-		return nil
-	}
-
-	if ob, err := loadFromOneTable(r, a.Actor.GetLink(), "actors"); err == nil {
-		if c := ob.Collection(); c.Count() > 1 {
-			a.Actor = ob.Collection()
-		} else if c.Count() == 1 {
-			a.Actor = ob.Collection().First()
-		}
-	}
-	return nil
-}
-
-func loadPropertiesForActivity(r *repo, ff ...filters.Check) func(o *vocab.Activity) error {
-	return func(a *vocab.Activity) error {
-		if af := filters.ActorChecks(ff...); len(af) > 0 {
-			if err := loadActorForActivity(r, a); err != nil {
-				return err
-			}
-		}
-		if of := filters.ObjectChecks(ff...); len(of) > 0 {
-			if err := loadObjectForActivity(r, a); err != nil {
-				return err
-			}
-		}
-		if tf := filters.TargetChecks(ff...); len(tf) > 0 {
-			if err := loadTargetForActivity(r, a); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
-func loadActivityFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f ...filters.Check) vocab.ItemCollection {
-	for _, it := range ret {
-		_ = vocab.OnActivity(it, loadPropertiesForActivity(r, f...))
-	}
-	return loadObjectFirstLevelIRIProperties(r, ret, f...)
-}
-
-func loadActorFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f ...filters.Check) vocab.ItemCollection {
-	return loadObjectFirstLevelIRIProperties(r, ret, f...)
-}
-
-func loadObjectFirstLevelIRIProperties(r *repo, ret vocab.ItemCollection, f ...filters.Check) vocab.ItemCollection {
-	for _, it := range ret {
-		_ = vocab.OnObject(it, loadTagsForObject(r, f...))
-	}
-	return ret
-}
-
-func runActivityFilters(r *repo, ret vocab.ItemCollection, f ...filters.Check) vocab.ItemCollection {
-	// If our filter contains values for filtering the activity's object or actor, we do that here:
-	//  for the case where the corresponding values are not set, this doesn't do anything
-	toRemove := make(vocab.IRIs, 0)
-
-	if of := filters.ObjectChecks(f...); len(of) > 0 {
-		toRemove = append(toRemove, childFilter(r, &ret, keepObject(of...), of...)...)
-	}
-	if af := filters.ActorChecks(f...); len(af) > 0 {
-		toRemove = append(toRemove, childFilter(r, &ret, keepActor(af...), af...)...)
-	}
-	if tf := filters.TargetChecks(f...); len(tf) > 0 {
-		toRemove = append(toRemove, childFilter(r, &ret, keepTarget(tf...), tf...)...)
-	}
-
-	result := make(vocab.ItemCollection, 0)
-	for _, it := range ret {
-		keep := true
-		for _, iri := range toRemove {
-			if it.GetLink().Equals(iri, false) {
-				keep = false
-			}
-		}
-		if keep {
-			result = append(result, it)
-		}
-	}
-	return result
-}
-
-type keepFn func(act *vocab.Activity, ob vocab.Item) bool
-
-func childFilter(r *repo, ret *vocab.ItemCollection, keepFn keepFn, ff ...filters.Check) vocab.IRIs {
-	f := filters.Checks(ff).Run(vocab.Item(*ret))
-	if f == nil {
-		return nil
-	}
-	toRemove := make(vocab.IRIs, 0)
-	children, err := loadFromThreeTables(r, "", ff...)
-	if err != nil {
-		return toRemove
-	}
-	for _, rr := range *ret {
-		if !vocab.ActivityTypes.Match(rr.GetType()) {
-			toRemove = append(toRemove, rr.GetID())
-			continue
-		}
-		keep := false
-		_ = vocab.OnActivity(rr, func(a *vocab.Activity) error {
-			for _, ob := range children.Collection() {
-				keep = keepFn(a, ob)
-				if keep {
-					break
-				}
-			}
-			return nil
-		})
-		if !keep {
-			toRemove = append(toRemove, rr.GetID())
-		}
-	}
-	return toRemove
 }
 
 var orderedCollectionTypes = vocab.ActivityVocabularyTypes{vocab.OrderedCollectionPageType, vocab.OrderedCollectionType}
@@ -991,17 +823,9 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.
 	}
 
 	items := res.Collection()
-	if table == "actors" {
-		items = loadActorFirstLevelIRIProperties(r, items, f...)
+	for i, it := range items {
+		items[i] = dereferencePropertiesByType(r, it, f...)
 	}
-	if table == "objects" {
-		items = loadObjectFirstLevelIRIProperties(r, items, f...)
-	}
-	if table == "activities" {
-		items = loadActivityFirstLevelIRIProperties(r, items, f...)
-		items = runActivityFilters(r, items, f...)
-	}
-	items = runObjectFilters(items, f...)
 
 	if isStorageCollectionIRI(iri) {
 		typ := res.GetType()
