@@ -158,10 +158,7 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 		return nil, err
 	}
 	maybeIt := filters.Checks(ff).Run(it)
-	if col, ok := maybeIt.(vocab.ItemCollection); ok && col.Count() == 1 {
-		return col.First(), nil
-	}
-	return maybeIt, nil
+	return firstOrItems(maybeIt), nil
 }
 
 var errNilItem = errors.Errorf("nil item")
@@ -257,17 +254,25 @@ func (r *repo) RemoveFrom(col vocab.IRI, items ...vocab.Item) error {
 	if r == nil || r.conn == nil {
 		return errNotOpen
 	}
+	if col.GetLink() == "" {
+		return errors.NotFoundf("unable to operate on empty collection IRI")
+	}
+
 	tx, err := r.conn.Begin()
 	if err != nil {
 		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
 	}
-	defer func() {
-		if err := tx.Commit(); err != nil {
-			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
-		}
-	}()
 
-	return r.removeFrom(tx, col, items...)
+	if err = r.removeFrom(tx, col, items...); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
+		return err
+	}
+
+	return nil
 }
 
 func (r *repo) addTo(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error {
@@ -370,13 +375,17 @@ func (r *repo) AddTo(col vocab.IRI, items ...vocab.Item) error {
 	if err != nil {
 		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
 	}
-	defer func() {
-		if err := tx.Commit(); err != nil {
-			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
-		}
-	}()
 
-	return r.addTo(tx, col, items...)
+	if err = r.addTo(tx, col, items...); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
+		return err
+	}
+
+	return nil
 }
 
 // Delete
@@ -671,7 +680,14 @@ func dereferenceItemAndFilter(r *repo, ob vocab.Item, fil ...filters.Check) (voc
 		return ob, nil
 	}
 
-	return o, nil
+	return firstOrItems(o), nil
+}
+
+func firstOrItems(it vocab.Item) vocab.Item {
+	if col, ok := it.(vocab.ItemCollection); ok && len(col) == 1 {
+		return col[0]
+	}
+	return it
 }
 
 func loadFilteredPropsForObject(r *repo, fil ...filters.Check) func(o *vocab.Object) error {
@@ -842,34 +858,40 @@ func delete(r repo, it vocab.Item) error {
 	iri := it.GetLink()
 	cleanupTables := []string{"meta", "actors", "objects", "activities"}
 
+	if r.cache != nil {
+		r.cache.Delete(iri)
+	}
+
 	tx, err := r.conn.Begin()
 	if err != nil {
-		r.errFn("%s", errors.Annotatef(err, "transaction start error"))
+		return err
 	}
-	defer func() {
-		if err := tx.Commit(); err != nil {
-			r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
-		}
-	}()
 
 	removeFn := func(table string, iri vocab.IRI) error {
-		query := fmt.Sprintf("DELETE FROM %s where iri = $1;", table)
-		if _, err := tx.Exec(query, iri); err != nil {
-			r.errFn("query error: %s\n%s", err, query)
+		query := "DELETE FROM " + table + " where iri = $1;"
+		stmt, err := tx.Prepare(query)
+		if err != nil {
+			r.errFn("query prepare error: %v\t%s", err, query)
+			return errors.Annotatef(err, "query error")
+		}
+		if _, err = stmt.Exec(iri); err != nil {
+			r.errFn("query execution error: %v\t%s", err, query)
 			return errors.Annotatef(err, "query error")
 		}
 		return nil
 	}
 
 	for _, tbl := range cleanupTables {
-		if err := removeFn(tbl, iri); err != nil {
+		if err = removeFn(tbl, iri); err != nil {
+			_ = tx.Rollback()
 			return err
 		}
 	}
-
-	if r.cache != nil {
-		r.cache.Delete(iri)
+	if err = tx.Commit(); err != nil {
+		r.errFn("%s", errors.Annotatef(err, "transaction commit error"))
+		return err
 	}
+
 	return nil
 }
 
