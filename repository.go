@@ -149,6 +149,9 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 	if r == nil || r.ro == nil {
 		return nil, errNotOpen
 	}
+	if i == "" {
+		return nil, errors.NotFoundf("not found")
+	}
 
 	if !isCollectionIRI(i) {
 		ff = append(filters.Checks{filters.SameID(i)}, ff...)

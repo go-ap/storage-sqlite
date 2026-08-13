@@ -568,6 +568,9 @@ func loadAccess(conn *sql.DB, ctx context.Context, code string, loadDeps bool) (
 		}
 		return acc, nil
 	}
+	if err = rows.Err(); err != nil {
+		return nil, errors.NewNotFound(err, "unable to load access data")
+	}
 	return nil, errors.NotFoundf("unable to load access data")
 }
 
