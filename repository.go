@@ -233,6 +233,21 @@ func (r *repo) removeFrom(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error 
 		return errors.NotFoundf("collection not found %s", col.GetLink())
 	}
 
+	typ := c.GetType()
+	if orderedCollectionTypes.Match(typ) {
+		err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
+			col.TotalItems = iris.Count()
+			col.OrderedItems = nil
+			return nil
+		})
+	} else if collectionTypes.Match(typ) {
+		err = vocab.OnCollection(c, func(col *vocab.Collection) error {
+			col.TotalItems = iris.Count()
+			col.Items = nil
+			return nil
+		})
+	}
+
 	raw, err := vocab.MarshalJSON(c)
 	if err != nil {
 		return errors.Annotatef(err, "unable to marshal collection")
