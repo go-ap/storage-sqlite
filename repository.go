@@ -161,6 +161,9 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 		return nil, err
 	}
 	maybeIt := filters.Checks(ff).Run(it)
+	if vocab.IsNil(maybeIt) {
+		return nil, errors.NotFoundf("not found")
+	}
 	return firstOrItems(maybeIt), nil
 }
 
@@ -557,7 +560,7 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 	}
 
 	for i, it := range ret {
-		ret[i] = dereferencePropertiesByType(r, it, f...)
+		ret[i] = firstOrItems(dereferencePropertiesByType(r, it, f...))
 	}
 	return &ret, err
 }
@@ -642,7 +645,7 @@ func dereferencePropertiesByType(r *repo, it vocab.Item, fil ...filters.Check) v
 		checks := append(objectChecks, authorizedChecks...)
 		_ = vocab.OnObject(it, loadFilteredPropsForObject(r, checks...))
 	}
-	return it
+	return firstOrItems(it)
 }
 
 func loadFilteredPropsForActor(r *repo, fil ...filters.Check) func(a *vocab.Actor) error {
@@ -679,6 +682,9 @@ func loadFilteredPropsForIntransitiveActivity(r *repo, fil ...filters.Check) fun
 			if a.Target, err = dereferenceItemAndFilter(r, a.Target, targetChecks...); err != nil {
 				return err
 			}
+			if a.Actor, err = dereferenceItemAndFilter(r, a.Actor, targetChecks...); err != nil {
+				return err
+			}
 		}
 		return vocab.OnObject(a, loadFilteredPropsForObject(r))
 	}
@@ -698,12 +704,12 @@ func dereferenceItemAndFilter(r *repo, ob vocab.Item, fil ...filters.Check) (voc
 		return ob, nil
 	}
 
-	return firstOrItems(o), nil
+	return o.Collection().Normalize(), nil
 }
 
 func firstOrItems(it vocab.Item) vocab.Item {
-	if col, ok := it.(vocab.ItemCollection); ok && len(col) == 1 {
-		return col[0]
+	if col, ok := it.(vocab.ItemCollection); ok {
+		return col.Normalize()
 	}
 	return it
 }
