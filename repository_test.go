@@ -237,7 +237,11 @@ func Test_repo_Load_old(t *testing.T) {
 			defer r.Close()
 
 			ff, _ := filters.FromIRI(tt.arg)
-			got, err := r.Load(tt.arg, ff...)
+			iri := tt.arg
+			if idx := strings.LastIndex(string(tt.arg), "?"); idx > 0 {
+				iri = tt.arg[:idx]
+			}
+			got, err := r.Load(iri, ff...)
 			checkErrorsEqual(t, tt.err, err)
 
 			if !cmp.Equal(tt.want, got, EquateItemCollections) {
@@ -1194,48 +1198,48 @@ func Test_repo_Load(t *testing.T) {
 				filters.Actor(filters.NameIs("Hank")),
 			),
 		},
-		//{
-		//	name: "outbox?type=Create&object.tag=-",
-		//	args: args{
-		//		iri: rootOutboxIRI,
-		//		fil: filters.Checks{
-		//			filters.Object(filters.Tag(filters.NilID)),
-		//		},
-		//	},
-		//	want: wantsRootOutbox(
-		//		filters.Object(filters.Tag(filters.NilID)),
-		//	),
-		//},
-		//{
-		//	name: "outbox?type=Create&object.tag.name=#test",
-		//	args: args{
-		//		iri: rootOutboxIRI,
-		//		fil: filters.Checks{
-		//			filters.HasType(vocab.CreateType),
-		//			filters.Object(filters.Tag(filters.NameIs("#test"))),
-		//		},
-		//	},
-		//	want: wantsRootOutbox(
-		//		filters.HasType(vocab.CreateType),
-		//		filters.Object(filters.Tag(filters.NameIs("#test"))),
-		//	),
-		//},
+		{
+			name: "outbox?type=Create&object.tag=-",
+			args: args{
+				iri: rootOutboxIRI,
+				fil: filters.Checks{
+					filters.Object(filters.Tag(filters.NilID)),
+				},
+			},
+			want: wantsRootOutbox(
+				filters.Object(filters.Tag(filters.NilID)),
+			),
+		},
+		{
+			name: "outbox?type=Create&object.tag.name=#test",
+			args: args{
+				iri: rootOutboxIRI,
+				fil: filters.Checks{
+					filters.HasType(vocab.CreateType),
+					filters.Object(filters.Tag(filters.NameIs("#test"))),
+				},
+			},
+			want: wantsRootOutbox(
+				filters.HasType(vocab.CreateType),
+				filters.Object(filters.Tag(filters.NameIs("#test"))),
+			),
+		},
 		{
 			name: "outbox?type=Question&target.type=Note",
 			args: args{
 				iri: rootOutboxIRI,
 				fil: filters.Checks{
 					filters.HasType(vocab.QuestionType),
-					filters.Target(filters.HasType(vocab.ImageType)),
+					filters.Target(filters.HasType(vocab.NoteType)),
 				},
 			},
 			want: wantsRootOutbox(
-				filters.HasType(vocab.CreateType),
-				filters.Object(filters.HasType(vocab.NoteType)),
+				filters.HasType(vocab.QuestionType),
+				filters.Target(filters.HasType(vocab.NoteType)),
 			),
 		},
 		{
-			name: "outbox?type=Create&object.type=Note",
+			name: "outbox?type=Create&actor.name=Hank",
 			args: args{
 				iri: rootOutboxIRI,
 				fil: filters.Checks{
@@ -1245,7 +1249,7 @@ func Test_repo_Load(t *testing.T) {
 			},
 			want: wantsRootOutbox(
 				filters.HasType(vocab.CreateType),
-				filters.Object(filters.HasType(vocab.NoteType)),
+				filters.Actor(filters.NameIs("Hank")),
 			),
 		},
 	}

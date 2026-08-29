@@ -153,9 +153,6 @@ func (r *repo) Load(i vocab.IRI, ff ...filters.Check) (vocab.Item, error) {
 		return nil, errors.NotFoundf("not found")
 	}
 
-	if !isCollectionIRI(i) {
-		ff = append(filters.Checks{filters.SameID(i)}, ff...)
-	}
 	it, err := load(r, i, ff...)
 	if err != nil {
 		return nil, err
@@ -237,13 +234,14 @@ func (r *repo) removeFrom(tx *sql.Tx, col vocab.IRI, items ...vocab.Item) error 
 	}
 
 	typ := c.GetType()
-	if orderedCollectionTypes.Match(typ) {
+	switch {
+	case orderedCollectionTypes.Match(typ):
 		err = vocab.OnOrderedCollection(c, func(col *vocab.OrderedCollection) error {
 			col.TotalItems = iris.Count()
 			col.OrderedItems = nil
 			return nil
 		})
-	} else if collectionTypes.Match(typ) {
+	case collectionTypes.Match(typ):
 		err = vocab.OnCollection(c, func(col *vocab.Collection) error {
 			col.TotalItems = iris.Count()
 			col.Items = nil
@@ -419,17 +417,13 @@ func (r *repo) Delete(it vocab.Item) error {
 		return nil
 	}
 
-	if vocab.IsCollection(it) {
-		err := vocab.OnCollectionIntf(it, func(c vocab.CollectionInterface) error {
-			var err error
-			for _, it := range c.Collection() {
-				if err = r.Delete(it); err != nil {
-					return err
-				}
-			}
+	if vocab.IsItemCollection(it) {
+		var items vocab.ItemCollection
+		_ = vocab.OnCollectionIntf(it, func(c vocab.CollectionInterface) error {
+			items = c.Collection()
 			return nil
 		})
-		return err
+		return delete(*r, items...)
 	}
 
 	return delete(*r, it)
@@ -490,24 +484,21 @@ func stripFiltersFromIRI(iri vocab.IRI) vocab.IRI {
 	return vocab.IRI(u.String())
 }
 
-func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface, error) {
-	if isSingleItem(f...) {
-		if len(f) == 0 {
-			f = filters.Checks{filters.SameID(iri)}
-		}
-	}
+var collectionPaths = append(filters.FedBOXCollections, append(vocab.OfActor, vocab.OfObject...)...)
+
+func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Item, error) {
 	if r.cache != nil {
 		if cachedIt := r.cache.Load(iri); cachedIt != nil {
-			return &vocab.ItemCollection{cachedIt}, nil
+			return vocab.ItemCollection{cachedIt}, nil
 		}
 	}
 
 	conn := r.ro
 	var unions *sqlf.Stmt
-	for _, table := range []string{"actors", "objects", "activities"} {
+	for _, table := range []string{"actors", "objects", "activities", "collections"} {
 		st := sqlf.From(table)
 		st.Select("iri").Select("raw").Select("published")
-		_ = filters.SQLWhere(st, f...)
+		_ = filters.SQLWhere(st, filters.SameID(iri))
 		if unions == nil {
 			unions = st
 		} else {
@@ -515,9 +506,8 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 		}
 	}
 
-	ret := make(vocab.ItemCollection, 0)
 	topSt := sqlf.From("("+unions.String()+") as x", unions.Args()...)
-	topSt.Select("iri").Select("raw")
+	topSt.Select("raw")
 	filters.SQLLimit(topSt, f...)
 
 	sq := topSt.String()
@@ -538,34 +528,27 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Coll
 	}
 	defer rows.Close()
 
-	// Iterate through the result set
+	var it vocab.Item
 	for rows.Next() {
-		var iri string
 		var raw []byte
-		if err = rows.Scan(&iri, &raw); err != nil {
-			return &ret, errors.Annotatef(err, "scan values error")
+		if err = rows.Scan(&raw); err != nil {
+			return nil, errors.Annotatef(err, "scan values error")
 		}
 
-		it, err := decodeItemFn(raw)
+		it, err = decodeItemFn(raw)
 		if err != nil {
-			return &ret, errors.Annotatef(err, "unable to unmarshal raw item")
+			return nil, errors.Annotatef(err, "unable to unmarshal raw item")
 		}
-		if vocab.IsObject(it) && r.cache != nil {
+		if !vocab.IsNil(it) && !vocab.IsIRI(it) && r.cache != nil {
 			r.cache.Store(it.GetLink(), it)
 		}
-		ret = append(ret, it)
 	}
-	if len(ret) == 0 {
-		return nil, errors.NotFoundf("not found")
+	if vocab.IsNil(it) {
+		return nil, errors.NotFoundf("item not found")
 	}
 
-	for i, it := range ret {
-		ret[i] = firstOrItems(dereferencePropertiesByType(r, it, f...))
-	}
-	return &ret, err
+	return dereferencePropertiesByType(r, it, f...), err
 }
-
-var collectionPaths = append(filters.FedBOXCollections, append(vocab.OfActor, vocab.OfObject...)...)
 
 func colIRI(iri vocab.IRI) vocab.IRI {
 	u, err := iri.URL()
@@ -600,8 +583,8 @@ func iriPath(iri vocab.IRI) string {
 var collectionTables = vocab.CollectionPaths{filters.ActivitiesType, filters.ActorsType, filters.ObjectsType}
 
 func isStorageCollectionIRI(iri vocab.IRI) bool {
-	lst := vocab.CollectionPath(filepath.Base(iriPath(iri)))
-	return collectionTables.Contains(lst)
+	_, maybeCol := collectionTables.Split(iri)
+	return maybeCol != vocab.Unknown
 }
 
 func isActorsCollectionIRI(iri vocab.IRI) bool {
@@ -626,26 +609,107 @@ func dereferencePropertiesByType(r *repo, it vocab.Item, fil ...filters.Check) v
 
 	authorizedChecks := filters.AuthorizedChecks(fil...)
 
-	typ := it.GetType()
 	// NOTE(marius): this can probably expedite filtering if we early exit when we fail to load the
-	// properties that need to be loaded for sub-filters.
-	if vocab.IntransitiveActivityTypes.Match(typ) /*&& len(intransitiveChecks) > 0*/ {
+	//  properties that need to be loaded for sub-filters.
+	typ := it.GetType()
+	switch {
+	case vocab.IntransitiveActivityTypes.Match(typ) /*&& len(intransitiveChecks) > 0*/ :
 		checks := append(intransitiveChecks, authorizedChecks...)
 		_ = vocab.OnIntransitiveActivity(it, loadFilteredPropsForIntransitiveActivity(r, checks...))
-	}
-	if vocab.ActivityTypes.Match(typ) /*&& len(activityChecks) > 0*/ {
+	case vocab.ActivityTypes.Match(typ) /*&& len(activityChecks) > 0*/ :
 		checks := append(activityChecks, authorizedChecks...)
 		_ = vocab.OnActivity(it, loadFilteredPropsForActivity(r, checks...))
-	}
-	if vocab.ActorTypes.Match(typ) /*&& len(actorChecks) > 0*/ {
+	case vocab.ActorTypes.Match(typ) /*&& len(actorChecks) > 0*/ :
 		checks := append(actorChecks, authorizedChecks...)
 		_ = vocab.OnActor(it, loadFilteredPropsForActor(r, checks...))
-	}
-	if vocab.ObjectTypes.Match(typ) /*&& len(objectChecks) > 0*/ {
+	case vocab.ObjectTypes.Match(typ) /*&& len(objectChecks) > 0*/ :
 		checks := append(objectChecks, authorizedChecks...)
 		_ = vocab.OnObject(it, loadFilteredPropsForObject(r, checks...))
+	case vocab.OrderedCollectionType.Match(typ):
+		_ = vocab.OnOrderedCollection(it, loadFilteredItemsForOrderedCollection(r, it.GetLink(), fil...))
+	case vocab.CollectionType.Match(typ):
+		_ = vocab.OnCollection(it, loadFilteredItemsForCollection(r, it.GetLink(), fil...))
 	}
 	return firstOrItems(it)
+}
+
+func loadFilteredItemsForCollection(r *repo, colIRI vocab.IRI, fil ...filters.Check) func(*vocab.Collection) error {
+	return func(c *vocab.Collection) error {
+		var err error
+		c.Items, err = loadItemsForCollection(r, c, fil...)
+		return err
+	}
+}
+
+func loadFilteredItemsForOrderedCollection(r *repo, colIRI vocab.IRI, fil ...filters.Check) func(*vocab.OrderedCollection) error {
+	return func(o *vocab.OrderedCollection) error {
+		var err error
+		o.OrderedItems, err = loadItemsForCollection(r, o, fil...)
+		return err
+	}
+}
+
+func loadItemsForCollection(r *repo, col vocab.Item, ff ...filters.Check) (vocab.ItemCollection, error) {
+	conn := r.ro
+
+	iri := col.GetLink()
+	s := sqlf.From("collections c, json_each(c.items, '$')")
+	s.Select("COALESCE(a.raw, ac.raw, o.raw, cc.raw) as raw")
+	s.Where("c.iri = ?", iri)
+	s.LeftJoin("activities a", "value = a.iri")
+	s.LeftJoin("actors ac", "value = ac.iri")
+	s.LeftJoin("objects o", "value = o.iri")
+	s.LeftJoin("collections cc", "value = cc.iri")
+
+	//filters.SQLWhere(s, ff...)
+
+	if orderedCollectionTypes.Match(col.GetType()) {
+		s.OrderBy(
+			"COALESCE(a.updated, a.published, ac.updated, ac.published, o.updated, o.published, cc.updated, cc.published) DESC NULLS FIRST",
+			"COALESCE(a.iri, ac.iri, o.iri, cc.iri) ASC",
+		)
+	}
+
+	sq := s.String()
+	ag := s.Args()
+
+	st, err := conn.Prepare(sq)
+	if err != nil {
+		return nil, errors.Annotatef(err, "unable to prepare statement")
+	}
+	defer st.Close()
+
+	rows, err := st.Query(ag...)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, errors.Annotatef(err, "unable to run select")
+	}
+	defer rows.Close()
+
+	ret := make(vocab.ItemCollection, 0)
+	for rows.Next() {
+		var raw []byte
+		if err = rows.Scan(&raw); err != nil {
+			return nil, errors.Annotatef(err, "scan values error")
+		}
+
+		it, err := decodeItemFn(raw)
+		if err != nil {
+			continue
+		}
+		if !vocab.IsNil(it) {
+			if !vocab.IsIRI(it) && r.cache != nil {
+				r.cache.Store(it.GetLink(), it)
+			}
+			_ = ret.Append(it)
+		}
+	}
+	if ret == nil {
+		return nil, nil
+	}
+	return ret, err
 }
 
 func loadFilteredPropsForActor(r *repo, fil ...filters.Check) func(a *vocab.Actor) error {
@@ -703,12 +767,18 @@ func dereferenceItemAndFilter(r *repo, ob vocab.Item, fil ...filters.Check) (voc
 	if err != nil {
 		return ob, nil
 	}
+	if col, err := vocab.ToItemCollection(o); err == nil {
+		o = col.Normalize()
+	}
 
-	return o.Collection().Normalize(), nil
+	return o, nil
 }
 
 func firstOrItems(it vocab.Item) vocab.Item {
 	if col, ok := it.(vocab.ItemCollection); ok {
+		return col.Normalize()
+	}
+	if col, ok := it.(*vocab.ItemCollection); ok {
 		return col.Normalize()
 	}
 	return it
@@ -743,57 +813,22 @@ func loadFilteredPropsForObject(r *repo, fil ...filters.Check) func(o *vocab.Obj
 var orderedCollectionTypes = vocab.ActivityVocabularyTypes{vocab.OrderedCollectionPageType, vocab.OrderedCollectionType}
 var collectionTypes = vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vocab.CollectionType}
 
-func load(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface, error) {
-	var items vocab.CollectionInterface
-	var err error
-
-	if !isCollectionIRI(iri) {
-		items, err = loadFromThreeTables(r, iri, f...)
+func load(r *repo, iri vocab.IRI, f ...filters.Check) (item vocab.Item, err error) {
+	if isStorageCollectionIRI(iri) {
+		item, err = loadFromCollectionTable(r, colIRI(iri), f...)
 		if err != nil {
-			return items, err
+			return item, err
 		}
-
-		if items.Count() == 0 {
-			return nil, errors.NotFoundf("Not found")
-		}
-		return items, nil
+		return item, vocab.OnObject(item, func(ob *vocab.Object) error {
+			ob.ID = iri
+			return nil
+		})
 	}
-	par, err := loadFromCollectionTable(r, colIRI(iri), f...)
+	item, err = loadFromThreeTables(r, iri, f...)
 	if err != nil {
-		return nil, err
+		return item, err
 	}
-	if vocab.IsNil(par) {
-		return nil, errors.NotFoundf("Unable to find collection %s", iri)
-	}
-	err = vocab.OnObject(par, func(ob *vocab.Object) error {
-		ob.ID = iri
-		return nil
-	})
-	typ := par.GetType()
-	if orderedCollectionTypes.Match(typ) {
-		_ = vocab.OnOrderedCollection(par, postProcessOrderedCollection(par.Collection()))
-	} else if collectionTypes.Match(typ) {
-		_ = vocab.OnCollection(par, postProcessCollection(par.Collection()))
-	}
-	return par, err
-}
-
-func postProcessCollection(items vocab.ItemCollection) vocab.WithCollectionFn {
-	return func(col *vocab.Collection) error {
-		if len(items) > 0 {
-			col.Items = items
-		}
-		return nil
-	}
-}
-
-func postProcessOrderedCollection(items vocab.ItemCollection) vocab.WithOrderedCollectionFn {
-	return func(col *vocab.OrderedCollection) error {
-		if len(items) > 0 {
-			col.OrderedItems = items
-		}
-		return nil
-	}
+	return item, nil
 }
 
 func isHiddenCollectionIRI(i vocab.IRI) bool {
@@ -801,11 +836,8 @@ func isHiddenCollectionIRI(i vocab.IRI) bool {
 	return filters.HiddenCollections.Contains(lst)
 }
 
-func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.CollectionInterface, error) {
+func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Item, error) {
 	conn := r.ro
-
-	selects := []string{"c.iri = ? "}
-	params := []any{iri}
 
 	table := getCollectionTypeFromIRI(iri)
 	s := sqlf.From("collections c")
@@ -814,10 +846,8 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.
 
 	if isActorsCollectionIRI(iri) {
 		// NOTE(marius): if loading the /actors storage collection we should keep only
-		// items that are "namespaced" in that collection.
-		// This fixes an issue that we would return also the root service for FedBOX, or collections
-		selects = append(selects, "x.iri LIKE ?")
-		params = append(params, iri.String()+"%")
+		//  items that are "namespaced" in that collection.
+		//  This fixes an issue that we would return also the root service for FedBOX, or collections
 		s.Where("x.iri like ?", iri.String()+"%")
 	}
 
@@ -857,7 +887,7 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.
 		return nil, errors.NotFoundf("Unable to find items in collection %s", iri)
 	}
 
-	res := vocab.OrderedCollection{}
+	res := new(vocab.OrderedCollection)
 	if err = decodeFn(raw, &res); err != nil {
 		return nil, errors.Annotatef(err, "Collection unmarshal error")
 	}
@@ -869,21 +899,34 @@ func loadFromCollectionTable(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.
 
 	if isStorageCollectionIRI(iri) {
 		typ := res.GetType()
-		if orderedCollectionTypes.Match(typ) {
-			err = vocab.OnOrderedCollection(res, postProcessOrderedCollection(items))
-		} else if collectionTypes.Match(typ) {
-			err = vocab.OnCollection(res, postProcessCollection(items))
+		switch {
+		case orderedCollectionTypes.Match(typ):
+			err = vocab.OnOrderedCollection(res, func(col *vocab.OrderedCollection) error {
+				if len(items) > 0 {
+					col.OrderedItems = items
+				}
+				return nil
+			})
+		case collectionTypes.Match(typ):
+			err = vocab.OnCollection(res, func(col *vocab.Collection) error {
+				if len(items) > 0 {
+					col.Items = items
+				}
+				return nil
+			})
 		}
 	}
-	return &res, err
+	return res, err
 }
 
-func delete(r repo, it vocab.Item) error {
-	iri := it.GetLink()
-	cleanupTables := []string{"meta", "actors", "objects", "activities"}
-
-	if r.cache != nil {
-		r.cache.Delete(iri)
+func delete(r repo, items ...vocab.Item) error {
+	params := make([]any, 0, len(items))
+	for _, it := range items {
+		iri := it.GetLink()
+		params = append(params, any(iri))
+		if r.cache != nil {
+			r.cache.Delete(iri)
+		}
 	}
 
 	tx, err := r.conn.Begin()
@@ -891,14 +934,18 @@ func delete(r repo, it vocab.Item) error {
 		return err
 	}
 
-	removeFn := func(table string, iri vocab.IRI) error {
-		query := "DELETE FROM " + table + " where iri = $1;"
+	cleanupTables := []string{"meta", "actors", "objects", "activities", "collections"}
+	removeFn := func(table string, iri ...any) error {
+		st := sqlf.DeleteFrom(table)
+		st.Where("iri").In(iri...)
+		query := st.String()
+
 		stmt, err := tx.Prepare(query)
 		if err != nil {
 			r.errFn("query prepare error: %v\t%s", err, query)
 			return errors.Annotatef(err, "query error")
 		}
-		if _, err = stmt.Exec(iri); err != nil {
+		if _, err = stmt.Exec(st.Args()...); err != nil {
 			r.errFn("query execution error: %v\t%s", err, query)
 			return errors.Annotatef(err, "query error")
 		}
@@ -906,7 +953,7 @@ func delete(r repo, it vocab.Item) error {
 	}
 
 	for _, tbl := range cleanupTables {
-		if err = removeFn(tbl, iri); err != nil {
+		if err = removeFn(tbl, params...); err != nil {
 			_ = tx.Rollback()
 			return err
 		}

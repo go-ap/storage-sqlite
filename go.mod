@@ -4,12 +4,12 @@ go 1.25.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260824082814-78f0de545fcf
-	github.com/go-ap/cache v0.0.0-20260824082836-3917e1d34ebf
+	github.com/go-ap/activitypub v0.0.0-20260828142325-6c1da3fca413
+	github.com/go-ap/cache v0.0.0-20260828143636-d5c30a299ed2
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260824082944-efaa36126211
+	github.com/go-ap/filters v0.0.0-20260829143922-adca6eec8763
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20260824083351-1b8cb6447fbf
+	github.com/go-ap/storage-conformance-suite v0.0.0-20260829144310-85c3295f4e1b
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.50
@@ -54,7 +54,7 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	modernc.org/libc v1.75.4 // indirect
+	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 	quamina.net/go/quamina/v2 v2.0.2 // indirect
