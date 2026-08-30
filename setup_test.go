@@ -365,6 +365,7 @@ func withGeneratedMocks(t *testing.T, r *repo) *repo {
 	dur := time.Second
 
 	actors := make(vocab.ItemCollection, 0, 20)
+	actors.Append(root)
 	for range cap(actors) - 1 {
 		actor := conformance.RandomActor(root)
 		_ = vocab.OnObject(actor, func(object *vocab.Object) error {

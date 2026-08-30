@@ -1260,8 +1260,26 @@ func Test_repo_Load(t *testing.T) {
 				t.Errorf("Load() error = %s", cmp.Diff(tt.wantErr, err, EquateWeakErrors))
 				return
 			}
-			if !cmp.Equal(tt.want, got, EquateItemCollections) {
-				t.Errorf("Load() got = %s", cmp.Diff(tt.want, got, EquateItemCollections))
+			// NOTE(marius): we compare in two steps:
+			//  1. remove OrderedItems and compare remaining OrderedCollection objects
+			//  2. compare the removed item collections with same ordering method
+			var wantItems vocab.ItemCollection
+			var gotItems vocab.ItemCollection
+			_ = vocab.OnOrderedCollection(tt.want, func(col *vocab.OrderedCollection) error {
+				wantItems = col.OrderedItems
+				col.OrderedItems = nil
+				return nil
+			})
+			_ = vocab.OnOrderedCollection(got, func(col *vocab.OrderedCollection) error {
+				gotItems = col.OrderedItems
+				col.OrderedItems = nil
+				return nil
+			})
+			if !cmp.Equal(tt.want, got, EquateItems) {
+				t.Errorf("Load() got = %s", cmp.Diff(tt.want, got, EquateItems))
+			}
+			if !cmp.Equal(wantItems, gotItems, EquateItemCollections) {
+				t.Errorf("Load() got ordered items = %s", cmp.Diff(wantItems, gotItems, EquateItemCollections))
 			}
 		})
 	}

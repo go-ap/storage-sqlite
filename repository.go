@@ -692,6 +692,7 @@ func loadItemsForCollection(r *repo, col vocab.Item, ff ...filters.Check) (vocab
 			if !vocab.IsIRI(it) && r.cache != nil {
 				r.cache.Store(it.GetLink(), it)
 			}
+			it = dereferencePropertiesByType(r, it, ff...)
 			_ = ret.Append(it)
 		}
 	}
@@ -707,8 +708,8 @@ func loadFilteredPropsForActor(r *repo, fil ...filters.Check) func(a *vocab.Acto
 	}
 }
 
-func loadFilteredPropsForActivity(r *repo, fil ...filters.Check) func(a *vocab.Activity) error {
-	objectChecks := filters.ObjectChecks(fil...)
+func loadFilteredPropsForActivity(r *repo, checks ...filters.Check) func(a *vocab.Activity) error {
+	objectChecks := filters.ObjectChecks(checks...)
 	return func(a *vocab.Activity) error {
 		var err error
 		if !vocab.IsNil(a.Object) {
@@ -719,27 +720,32 @@ func loadFilteredPropsForActivity(r *repo, fil ...filters.Check) func(a *vocab.A
 				return err
 			}
 		}
-		intransitiveChecks := filters.IntransitiveActivityChecks(fil...)
-		return vocab.OnIntransitiveActivity(a, loadFilteredPropsForIntransitiveActivity(r, intransitiveChecks...))
+		return vocab.OnIntransitiveActivity(a, loadFilteredPropsForIntransitiveActivity(r, checks...))
 	}
 }
 
-func loadFilteredPropsForIntransitiveActivity(r *repo, fil ...filters.Check) func(a *vocab.IntransitiveActivity) error {
-	targetChecks := filters.TargetChecks(fil...)
+func loadFilteredPropsForIntransitiveActivity(r *repo, checks ...filters.Check) func(a *vocab.IntransitiveActivity) error {
+	targetChecks := filters.TargetChecks(checks...)
+	actorChecks := filters.ActorChecks(checks...)
 	return func(a *vocab.IntransitiveActivity) error {
 		var err error
-		if !vocab.IsNil(a.Target) {
+		if !vocab.IsNil(a.Target) && len(targetChecks) > 0 {
 			if a.ID.Equals(a.Target.GetLink(), false) {
 				return errors.BadGatewayf("invalid activity with id %s, referencing itself as a target: %s", a.ID, a.Target.GetLink())
 			}
 			if a.Target, err = dereferenceItemAndFilter(r, a.Target, targetChecks...); err != nil {
 				return err
 			}
-			if a.Actor, err = dereferenceItemAndFilter(r, a.Actor, targetChecks...); err != nil {
+		}
+		if !vocab.IsNil(a.Actor) && len(actorChecks) > 0 {
+			if a.ID.Equals(a.Actor.GetLink(), false) {
+				return errors.BadGatewayf("invalid activity with id %s, referencing itself as a actor: %s", a.ID, a.Target.GetLink())
+			}
+			if a.Actor, err = dereferenceItemAndFilter(r, a.Actor, actorChecks...); err != nil {
 				return err
 			}
 		}
-		return vocab.OnObject(a, loadFilteredPropsForObject(r))
+		return vocab.OnObject(a, loadFilteredPropsForObject(r, checks...))
 	}
 }
 
