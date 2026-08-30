@@ -597,38 +597,27 @@ func isCollectionIRI(iri vocab.IRI) bool {
 	return collectionPaths.Contains(lst)
 }
 
-func dereferencePropertiesByType(r *repo, it vocab.Item, fil ...filters.Check) vocab.Item {
+func dereferencePropertiesByType(r *repo, it vocab.Item, checks ...filters.Check) vocab.Item {
 	if vocab.IsNil(it) || vocab.IsIRI(it) {
 		return it
 	}
-
-	intransitiveChecks := filters.IntransitiveActivityChecks(fil...)
-	activityChecks := filters.ActivityChecks(fil...)
-	actorChecks := filters.ActorChecks(fil...)
-	objectChecks := filters.ObjectChecks(fil...)
-
-	authorizedChecks := filters.AuthorizedChecks(fil...)
 
 	// NOTE(marius): this can probably expedite filtering if we early exit when we fail to load the
 	//  properties that need to be loaded for sub-filters.
 	typ := it.GetType()
 	switch {
-	case vocab.IntransitiveActivityTypes.Match(typ) /*&& len(intransitiveChecks) > 0*/ :
-		checks := append(intransitiveChecks, authorizedChecks...)
+	case vocab.IntransitiveActivityTypes.Match(typ):
 		_ = vocab.OnIntransitiveActivity(it, loadFilteredPropsForIntransitiveActivity(r, checks...))
-	case vocab.ActivityTypes.Match(typ) /*&& len(activityChecks) > 0*/ :
-		checks := append(activityChecks, authorizedChecks...)
+	case vocab.ActivityTypes.Match(typ):
 		_ = vocab.OnActivity(it, loadFilteredPropsForActivity(r, checks...))
-	case vocab.ActorTypes.Match(typ) /*&& len(actorChecks) > 0*/ :
-		checks := append(actorChecks, authorizedChecks...)
+	case vocab.ActorTypes.Match(typ):
 		_ = vocab.OnActor(it, loadFilteredPropsForActor(r, checks...))
-	case vocab.ObjectTypes.Match(typ) /*&& len(objectChecks) > 0*/ :
-		checks := append(objectChecks, authorizedChecks...)
+	case vocab.ObjectTypes.Match(typ):
 		_ = vocab.OnObject(it, loadFilteredPropsForObject(r, checks...))
 	case vocab.OrderedCollectionType.Match(typ):
-		_ = vocab.OnOrderedCollection(it, loadFilteredItemsForOrderedCollection(r, it.GetLink(), fil...))
+		_ = vocab.OnOrderedCollection(it, loadFilteredItemsForOrderedCollection(r, it.GetLink(), checks...))
 	case vocab.CollectionType.Match(typ):
-		_ = vocab.OnCollection(it, loadFilteredItemsForCollection(r, it.GetLink(), fil...))
+		_ = vocab.OnCollection(it, loadFilteredItemsForCollection(r, it.GetLink(), checks...))
 	}
 	return firstOrItems(it)
 }
@@ -816,13 +805,9 @@ var collectionTypes = vocab.ActivityVocabularyTypes{vocab.CollectionPageType, vo
 func load(r *repo, iri vocab.IRI, f ...filters.Check) (item vocab.Item, err error) {
 	if isStorageCollectionIRI(iri) {
 		item, err = loadFromCollectionTable(r, colIRI(iri), f...)
-		if err != nil {
-			return item, err
+		if err == nil {
+			return item, nil
 		}
-		return item, vocab.OnObject(item, func(ob *vocab.Object) error {
-			ob.ID = iri
-			return nil
-		})
 	}
 	item, err = loadFromThreeTables(r, iri, f...)
 	if err != nil {
