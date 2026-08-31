@@ -1149,12 +1149,18 @@ func Test_repo_Load(t *testing.T) {
 		{
 			name: "first Person",
 			args: args{iri: "https://example.com/person/1"},
-			want: filter(*allActors.Load(), filters.HasType("Person")).First(),
+			want: func() vocab.Item {
+				items := filter(*allActors.Load(), filters.HasType("Person"))
+				return items[len(items)-1]
+			}(),
 		},
 		{
 			name: "first Follow",
 			args: args{iri: "https://example.com/follow/1"},
-			want: filter(*allActivities.Load(), filters.HasType("Follow")).First(),
+			want: func() vocab.Item {
+				items := filter(*allActivities.Load(), filters.HasType("Follow"))
+				return items[len(items)-1]
+			}(),
 		},
 		{
 			name: "first Image",
@@ -1172,7 +1178,7 @@ func Test_repo_Load(t *testing.T) {
 				iri: rootOutboxIRI,
 				fil: filters.Checks{filters.WithMaxCount(2)},
 			},
-			want: wantsRootOutboxPage(2, filters.WithMaxCount(2)),
+			want: wantsRootOutboxPage(filters.WithMaxCount(2)),
 		},
 		{
 			name: "outbox?type=Create",

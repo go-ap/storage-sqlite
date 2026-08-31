@@ -66,8 +66,8 @@ func compareItemCollections(x, y interface{}) bool {
 	if ic2, ok := y.(*vocab.ItemCollection); ok {
 		i2 = *ic2
 	}
-	slices.SortStableFunc(i1, vocab.TimestampSortFunc)
-	slices.SortStableFunc(i2, vocab.TimestampSortFunc)
+	slices.SortStableFunc(i1, filters.TimestampSortFunc)
+	slices.SortStableFunc(i2, filters.TimestampSortFunc)
 	return vocab.ItemsEqual(i1, i2)
 }
 
@@ -418,7 +418,7 @@ func withGeneratedMocks(t *testing.T, r *repo) *repo {
 	}
 	activities = append(creates, activities...)
 
-	slices.SortStableFunc(activities, vocab.TimestampSortFunc)
+	slices.SortStableFunc(activities, filters.TimestampSortFunc)
 
 	r = withGeneratedItems(activities)(t, r)
 	r = withActivitiesToCollections(activities)(t, r)
@@ -456,20 +456,25 @@ func filter(items vocab.ItemCollection, fil ...filters.Check) vocab.ItemCollecti
 	return *result
 }
 
-func wantsRootOutboxPage(maxItems int, ff ...filters.Check) vocab.Item {
+func wantsRootOutboxPage(ff ...filters.Check) vocab.Item {
 	items := *allActivities.Load()
-	return &vocab.OrderedCollectionPage{
-		ID:           filters.IRIf(rootOutboxIRI, ff...),
+	oi := filter(items, ff...)
+	id := filters.IRIf(rootOutboxIRI, ff...)
+	col := &vocab.OrderedCollectionPage{
+		ID:           id,
 		Type:         vocab.OrderedCollectionPageType,
 		AttributedTo: rootIRI,
 		Published:    publishedTime,
 		CC:           vocab.ItemCollection{vocab.IRI("https://www.w3.org/ns/activitystreams#Public")},
 		PartOf:       rootOutboxIRI,
-		First:        filters.IRIf(rootOutboxIRI, append(ff, filters.WithMaxCount(maxItems))...),
-		Next:         filters.IRIf(rootOutboxIRI, append(ff, filters.After(filters.SameID(rootIRI.AddPath("create/2"))), filters.WithMaxCount(maxItems))...),
-		OrderedItems: filter(items, ff...),
+		First:        id,
+		OrderedItems: oi,
 		TotalItems:   items.Count(),
 	}
+	if len(oi) > 1 {
+		col.Next = filters.IRIf(rootOutboxIRI, append(ff, filters.After(filters.SameID(oi[len(oi)-1].GetLink())))...)
+	}
+	return col
 }
 
 func wantsRootOutbox(ff ...filters.Check) vocab.Item {

@@ -654,7 +654,7 @@ func loadItemsForCollection(r *repo, col vocab.Item, ff ...filters.Check) (vocab
 
 	if orderedCollectionTypes.Match(col.GetType()) {
 		s.OrderBy(
-			"COALESCE(a.updated, a.published, ac.updated, ac.published, o.updated, o.published, cc.updated, cc.published) DESC NULLS FIRST",
+			"COALESCE(max(a.updated, a.published), max(ac.updated, ac.published), max(o.updated, o.published), max(cc.updated, cc.published)) DESC NULLS FIRST",
 			"COALESCE(a.iri, ac.iri, o.iri, cc.iri) ASC",
 		)
 	}
