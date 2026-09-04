@@ -515,7 +515,7 @@ func loadFromThreeTables(r *repo, iri vocab.IRI, f ...filters.Check) (vocab.Item
 
 	st, err := conn.Prepare(sq)
 	if err != nil {
-		return nil, errors.Annotatef(err, "unable to prepare statement")
+		return nil, errors.NewNotFound(err, "database is not initialized")
 	}
 	defer st.Close()
 
