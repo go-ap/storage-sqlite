@@ -403,9 +403,11 @@ func Test_repo_Create(t *testing.T) {
 }
 
 func orderedCollection(iri vocab.IRI) *vocab.OrderedCollection {
-	col := vocab.OrderedCollectionNew(iri)
-	col.Published = time.Now().UTC().Truncate(time.Second)
-	return col
+	return &vocab.OrderedCollection{
+		ID:        iri,
+		Type:      vocab.OrderedCollectionType,
+		Published: time.Now().UTC().Truncate(time.Second),
+	}
 }
 
 func Test_repo_AddTo(t *testing.T) {
