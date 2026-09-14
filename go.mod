@@ -4,12 +4,12 @@ go 1.26.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260913133145-416f1c0ed9a1
-	github.com/go-ap/cache v0.0.0-20260913133218-7328819bb3f8
+	github.com/go-ap/activitypub v0.0.0-20260914124931-8ec3d41415b0
+	github.com/go-ap/cache v0.0.0-20260914125539-0dd052864b13
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260913133245-971d96337e18
+	github.com/go-ap/filters v0.0.0-20260914130005-a94e6e63f9e9
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20260913133431-0e84f49e4365
+	github.com/go-ap/storage-conformance-suite v0.0.0-20260914131447-4b414c46eacd
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.52
@@ -57,7 +57,7 @@ require (
 	modernc.org/libc v1.75.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	quamina.net/go/quamina/v2 v2.0.2 // indirect
+	quamina.net/go/quamina/v2 v2.0.3 // indirect
 )
 
 tool (
