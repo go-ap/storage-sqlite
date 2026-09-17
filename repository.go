@@ -781,27 +781,36 @@ func firstOrItems(it vocab.Item) vocab.Item {
 
 func loadFilteredPropsForObject(r *repo, fil ...filters.Check) func(o *vocab.Object) error {
 	return func(o *vocab.Object) error {
-		if len(o.Tag) == 0 {
+		if vocab.IsNil(o.Tag) {
 			return nil
 		}
-		return vocab.OnItemCollection(o.Tag, func(col *vocab.ItemCollection) error {
-			for i, t := range *col {
-				if vocab.IsNil(t) || !vocab.IsIRI(t) {
+		tags := make(vocab.ItemCollection, 0)
+		err := vocab.OnItem(o.Tag, func(it vocab.Item) error {
+			if vocab.IsNil(it) {
+				return nil
+			}
+			var tag vocab.Item
+			if !vocab.IsIRI(it) {
+				tag = it
+			} else {
+				items, err := loadFromThreeTables(r, it.GetLink())
+				if err != nil {
 					return nil
 				}
-				items, err := loadFromThreeTables(r, t.GetLink())
-				if err != nil {
-					continue
-				}
-				_ = vocab.OnItem(items, func(it vocab.Item) error {
-					if it = filters.TagChecks(fil...).Run(it); !vocab.IsNil(it) {
-						(*col)[i] = items
+				_ = vocab.OnItem(items, func(ob vocab.Item) error {
+					if ob = filters.TagChecks(fil...).Run(ob); ob == nil {
+						return nil
 					}
+					tag = ob
 					return nil
 				})
 			}
-			return nil
+			return tags.Append(tag)
 		})
+		if err == nil && len(tags) > 0 {
+			o.Tag = tags.Normalize()
+		}
+		return err
 	}
 }
 

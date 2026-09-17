@@ -18,80 +18,17 @@ import (
 
 	vocab "github.com/go-ap/activitypub"
 	"github.com/go-ap/cache"
-	"github.com/go-ap/errors"
 	"github.com/go-ap/filters"
 	conformance "github.com/go-ap/storage-conformance-suite"
-	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/osin"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func areErrors(a, b any) bool {
-	_, ok1 := a.(error)
-	_, ok2 := b.(error)
-	return ok1 && ok2
-}
-
-func compareErrors(x, y interface{}) bool {
-	xe := x.(error)
-	ye := y.(error)
-	if errors.Is(xe, ye) || errors.Is(ye, xe) {
-		return true
-	}
-	return xe.Error() == ye.Error()
-}
-
-var EquateWeakErrors = cmp.FilterValues(areErrors, cmp.Comparer(compareErrors))
-
-func areItemCollections(a, b any) bool {
-	_, ok1 := a.(vocab.ItemCollection)
-	_, ok3 := a.(*vocab.ItemCollection)
-	_, ok2 := b.(vocab.ItemCollection)
-	_, ok4 := b.(*vocab.ItemCollection)
-	return (ok1 || ok3) && (ok2 || ok4)
-}
-
-func compareItemCollections(x, y interface{}) bool {
-	var i1 vocab.ItemCollection
-	var i2 vocab.ItemCollection
-	if ic1, ok := x.(vocab.ItemCollection); ok {
-		i1 = ic1
-	}
-	if ic1, ok := x.(*vocab.ItemCollection); ok {
-		i1 = *ic1
-	}
-	if ic2, ok := y.(vocab.ItemCollection); ok {
-		i2 = ic2
-	}
-	if ic2, ok := y.(*vocab.ItemCollection); ok {
-		i2 = *ic2
-	}
-	slices.SortStableFunc(i1, filters.TimestampSortFunc)
-	slices.SortStableFunc(i2, filters.TimestampSortFunc)
-	return vocab.ItemsEqual(i1, i2)
-}
-
-var EquateItemCollections = cmp.FilterValues(areItemCollections, cmp.Comparer(compareItemCollections))
-
-func areItems(a, b any) bool {
-	_, ok1 := a.(vocab.Item)
-	_, ok2 := b.(vocab.Item)
-	return ok1 && ok2
-}
-
-func compareItems(x, y interface{}) bool {
-	var i1 vocab.Item
-	var i2 vocab.Item
-	if ic1, ok := x.(vocab.Item); ok {
-		i1 = ic1
-	}
-	if ic2, ok := y.(vocab.Item); ok {
-		i2 = ic2
-	}
-	return vocab.ItemsEqual(i1, i2)
-}
-
-var EquateItems = cmp.FilterValues(areItems, cmp.Comparer(compareItems))
+var (
+	EquateItemCollections = conformance.EquateItemCollections
+	EquateItems           = conformance.EquateItems
+	EquateWeakErrors      = conformance.EquateErrors
+)
 
 type fields struct {
 	path  string
@@ -358,6 +295,15 @@ func mockCollection(parent vocab.Item, colType vocab.CollectionPath) vocab.Colle
 	}
 }
 
+func randomTags(parent vocab.Item) vocab.ItemCollection {
+	cnt := mrand.Intn(3)
+	tags := make(vocab.ItemCollection, 0, cnt)
+	for _ = range cnt {
+		_ = tags.Append(conformance.RandomTag(parent))
+	}
+	return tags
+}
+
 func withGeneratedMocks(t *testing.T, r *repo) *repo {
 	idSetter := setId(rootIRI)
 	r = withGeneratedRoot(root)(t, r)
@@ -387,7 +333,7 @@ func withGeneratedMocks(t *testing.T, r *repo) *repo {
 		_ = vocab.OnObject(ob, func(object *vocab.Object) error {
 			object.Published = publishedTime.Add(dur)
 			dur += time.Duration(mrand.Intn(666)) * time.Second
-			object.Tag = vocab.ItemCollection{conformance.RandomTag(parent)}
+			object.Tag = randomTags(parent).Normalize()
 			return idSetter(object)
 		})
 		_ = objects.Append(ob)
