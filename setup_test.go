@@ -227,7 +227,7 @@ var (
 		ID:        rootIRI,
 		Type:      vocab.ServiceType,
 		Published: publishedTime,
-		Name:      vocab.DefaultNaturalLanguage("example.com"),
+		Name:      vocab.DefaultLangValue("example.com"),
 		Inbox:     rootInboxIRI,
 		Outbox:    rootOutboxIRI,
 	}
