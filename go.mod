@@ -4,18 +4,18 @@ go 1.26.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20260924153054-b014c6959a68
-	github.com/go-ap/cache v0.0.0-20260925153643-9e8b52f19978
+	github.com/go-ap/activitypub v0.0.0-20261001125346-b9d06cf2e5ad
+	github.com/go-ap/cache v0.0.0-20261001125421-b8126f5ef46f
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20260925153747-c771950b56d6
+	github.com/go-ap/filters v0.0.0-20261001125446-b076b2dcd009
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20260925154035-58b26383e917
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261001125600-8dd50a960d62
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.57.0
-	modernc.org/sqlite v1.59.0
+	modernc.org/sqlite v1.60.1
 )
 
 require (
@@ -41,7 +41,7 @@ require (
 	github.com/mfridman/tparse v0.18.0 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
-	github.com/ncruces/go-strftime v1.0.0 // indirect
+	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
