@@ -4,12 +4,12 @@ go 1.26.0
 
 require (
 	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20261001125346-b9d06cf2e5ad
-	github.com/go-ap/cache v0.0.0-20261001125421-b8126f5ef46f
+	github.com/go-ap/activitypub v0.0.0-20261005161154-ddfb80ed6f31
+	github.com/go-ap/cache v0.0.0-20261005161647-8b26e6aee918
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20261001125446-b076b2dcd009
+	github.com/go-ap/filters v0.0.0-20261005164204-2bcbaf0c6cac
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20261001125600-8dd50a960d62
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261005164843-ce03496950d5
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.52
@@ -22,7 +22,7 @@ require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.25.0 // indirect
+	github.com/bits-and-blooms/bitset v1.26.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.11.8 // indirect
