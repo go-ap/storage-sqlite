@@ -3,29 +3,29 @@ module github.com/go-ap/storage-sqlite
 go 1.26.0
 
 require (
-	github.com/carlmjohnson/be v0.23.2
-	github.com/go-ap/activitypub v0.0.0-20261018144412-73e07f958d52
-	github.com/go-ap/cache v0.0.0-20261018144523-65b6404a30be
+	github.com/carlmjohnson/be v0.25.2
+	github.com/go-ap/activitypub v0.0.0-20261101142956-a76d71dd72b0
+	github.com/go-ap/cache v0.0.0-20261101144458-eb7e2f285afb
 	github.com/go-ap/errors v0.0.0-20260701132509-92e5e4fd6394
-	github.com/go-ap/filters v0.0.0-20261018144629-c36aa22d954e
+	github.com/go-ap/filters v0.0.0-20261101144638-4754d87b7869
 	github.com/go-ap/jsonld v0.0.0-20260607140920-737b40e0ca38
-	github.com/go-ap/storage-conformance-suite v0.0.0-20261018145546-8cb9877f5343
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261101145434-f950c6192791
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/openshift/osin v1.0.2-0.20220317075346-0f4d38c6e53f
 	golang.org/x/crypto v0.58.0
-	modernc.org/sqlite v1.60.1
+	modernc.org/sqlite v1.61.1
 )
 
 require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.26.0 // indirect
+	github.com/bits-and-blooms/bitset v1.29.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
-	github.com/charmbracelet/x/ansi v0.11.8 // indirect
+	github.com/charmbracelet/x/ansi v0.11.9 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
@@ -36,7 +36,7 @@ require (
 	github.com/jdkato/prose v1.2.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/mattn/go-runewidth v0.0.30 // indirect
+	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/mattn/goveralls v0.0.12 // indirect
 	github.com/mfridman/tparse v0.18.0 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
@@ -48,14 +48,14 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
-	github.com/xo/terminfo v1.2.0 // indirect
+	github.com/xo/terminfo v1.3.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	modernc.org/libc v1.79.0 // indirect
+	modernc.org/libc v1.79.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 	quamina.net/go/quamina/v2 v2.0.3 // indirect
