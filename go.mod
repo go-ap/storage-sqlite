@@ -4,12 +4,12 @@ go 1.26.0
 
 require (
 	github.com/carlmjohnson/be v0.25.2
-	github.com/go-ap/activitypub v0.0.0-20261114094942-b164c2575fd9
-	github.com/go-ap/cache v0.0.0-20261114095044-c9c9c8423578
+	github.com/go-ap/activitypub v0.0.0-20261117195929-f28d9e613601
+	github.com/go-ap/cache v0.0.0-20261120081232-a7a4106226a4
 	github.com/go-ap/errors v0.0.0-20261107170344-5391268d9d2c
-	github.com/go-ap/filters v0.0.0-20261114095223-5acde6d8785c
+	github.com/go-ap/filters v0.0.0-20261120081820-5ee59de928b0
 	github.com/go-ap/jsonld v0.0.0-20261107170435-a7bb5ba3f894
-	github.com/go-ap/storage-conformance-suite v0.0.0-20261114103239-6393ae1058ed
+	github.com/go-ap/storage-conformance-suite v0.0.0-20261120082609-6a8c3ec95e2b
 	github.com/google/go-cmp v0.7.0
 	github.com/leporo/sqlf v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.53
@@ -22,7 +22,7 @@ require (
 	git.sr.ht/~mariusor/go-xsd-duration v0.0.0-20220703122237-02e73435a078 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.29.0 // indirect
+	github.com/bits-and-blooms/bitset v1.30.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.11.9 // indirect
@@ -48,16 +48,16 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
-	github.com/xo/terminfo v1.3.0 // indirect
-	golang.org/x/mod v0.42.0 // indirect
+	github.com/xo/terminfo v1.3.1 // indirect
+	golang.org/x/mod v0.43.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/term v0.48.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
-	modernc.org/libc v1.81.1 // indirect
+	modernc.org/libc v1.82.8 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.12.1 // indirect
+	modernc.org/memory v1.13.0 // indirect
 	quamina.net/go/quamina/v2 v2.0.3 // indirect
 )
 
